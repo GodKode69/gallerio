@@ -44,14 +44,6 @@ class GallerioNavBar extends StatelessWidget {
         child: Row(
           children: List.generate(5, (index) {
             final isSelected = index == currentIndex;
-            final isInvolved = index == prev || index == currentIndex;
-            final delay = isInvolved
-                ? (index < prev
-                    ? (prev - index) * 40
-                    : index > currentIndex
-                        ? (index - currentIndex) * 40
-                        : 0)
-                : 0;
 
             return Expanded(
               child: GestureDetector(
@@ -66,7 +58,6 @@ class GallerioNavBar extends StatelessWidget {
                   icon: isSelected ? _activeIcons[index] : _icons[index],
                   label: _labels[index],
                   activeColor: colorScheme.primary,
-                  delay: delay,
                 ),
               ),
             );
@@ -83,7 +74,6 @@ class _NavBarItem extends StatefulWidget {
   final IconData icon;
   final String label;
   final Color activeColor;
-  final int delay;
 
   const _NavBarItem({
     required this.index,
@@ -91,7 +81,6 @@ class _NavBarItem extends StatefulWidget {
     required this.icon,
     required this.label,
     required this.activeColor,
-    required this.delay,
   });
 
   @override
@@ -109,15 +98,13 @@ class _NavBarItemState extends State<_NavBarItem>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
+      value: widget.isSelected ? 0.0 : 1.0,
     );
-    _scaleAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutBack,
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
     if (widget.isSelected) {
-      Future.delayed(Duration(milliseconds: widget.delay), () {
-        if (mounted) _controller.forward();
-      });
+      _controller.forward();
     }
   }
 
@@ -126,11 +113,9 @@ class _NavBarItemState extends State<_NavBarItem>
     super.didUpdateWidget(oldWidget);
     if (widget.isSelected && !oldWidget.isSelected) {
       _controller.reset();
-      Future.delayed(Duration(milliseconds: widget.delay), () {
-        if (mounted) _controller.forward();
-      });
+      _controller.forward();
     } else if (!widget.isSelected && oldWidget.isSelected) {
-      // Don't reverse scale — keep at 1.0 to avoid icon disappearing
+      _controller.value = 1.0;
     }
   }
 
