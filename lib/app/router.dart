@@ -9,12 +9,21 @@ import '../features/viewer/screens/viewer_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
 import 'shell_screen.dart';
 
+class _AuthRefreshNotifier extends ChangeNotifier {
+  _AuthRefreshNotifier(this._ref) {
+    _ref.listen<AuthState>(authStateProvider, (_, __) => notifyListeners());
+  }
+  final Ref _ref;
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final refreshNotifier = _AuthRefreshNotifier(ref);
 
   return GoRouter(
     initialLocation: '/gallery',
+    refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
       final isPinSet = authState.isPinSet;
       final isUnlocked = authState.isUnlocked;
       final isLoading = authState.isLoading;
