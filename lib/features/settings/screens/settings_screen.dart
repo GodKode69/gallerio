@@ -213,21 +213,18 @@ class _TrashBin extends ConsumerWidget {
   }
 
   void _openTrashScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const _TrashScreen()),
-    );
+    context.push('/trash');
   }
 }
 
-class _TrashScreen extends StatefulWidget {
-  const _TrashScreen();
+class TrashScreen extends StatefulWidget {
+  const TrashScreen({super.key});
 
   @override
-  State<_TrashScreen> createState() => _TrashScreenState();
+  State<TrashScreen> createState() => TrashScreenState();
 }
 
-class _TrashScreenState extends State<_TrashScreen> {
+class TrashScreenState extends State<TrashScreen> {
   final TrashService _trashService = TrashService();
   List<TrashItem> _items = [];
   bool _isLoading = true;
@@ -261,88 +258,88 @@ class _TrashScreenState extends State<_TrashScreen> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.delete_outline,
-                          size: 64, color: Colors.white24),
-                      SizedBox(height: 16),
-                      Text(
-                        'Trash is empty',
-                        style: TextStyle(color: Colors.white54, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: _items.length,
-                  itemBuilder: (context, index) {
-                    final item = _items[index];
-                    final daysLeft = 30 -
-                        DateTime.now().difference(item.deletedAt).inDays;
-                    return Card(
-                      color: const Color(0xFF1D1D1D),
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      child: ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: Image.file(
-                              File(item.trashPath),
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
-                                item.mimeType == 'video'
-                                    ? Icons.videocam
-                                    : Icons.photo,
-                                color: Colors.white54,
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _items.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.delete_outline,
+                            size: 64, color: Colors.white24),
+                        SizedBox(height: 16),
+                        Text(
+                          'Trash is empty',
+                          style: TextStyle(color: Colors.white54, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _items.length,
+                    itemBuilder: (context, index) {
+                      final item = _items[index];
+                      final daysLeft = 30 -
+                          DateTime.now().difference(item.deletedAt).inDays;
+                      return Card(
+                        color: const Color(0xFF1D1D1D),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        child: ListTile(
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: SizedBox(
+                              width: 48,
+                              height: 48,
+                              child: Image.file(
+                                File(item.trashPath),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  item.mimeType == 'video'
+                                      ? Icons.videocam
+                                      : Icons.photo,
+                                  color: Colors.white54,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        title: Text(
-                          item.name,
-                          style: const TextStyle(color: Colors.white),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          'Deletes in $daysLeft days',
-                          style: TextStyle(
-                            color: daysLeft <= 3
-                                ? Colors.redAccent
-                                : Colors.white54,
-                            fontSize: 12,
+                          title: Text(
+                            item.name,
+                            style: const TextStyle(color: Colors.white),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            'Deletes in $daysLeft days',
+                            style: TextStyle(
+                              color: daysLeft <= 3
+                                  ? Colors.redAccent
+                                  : Colors.white54,
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.restore,
+                                    color: Colors.white70),
+                                onPressed: () => _restore(item),
+                                tooltip: 'Restore',
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_forever,
+                                    color: Colors.redAccent),
+                                onPressed: () => _permanentDelete(item),
+                                tooltip: 'Delete forever',
+                              ),
+                            ],
                           ),
                         ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.restore,
-                                  color: Colors.white70),
-                              onPressed: () => _restore(item),
-                              tooltip: 'Restore',
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_forever,
-                                  color: Colors.redAccent),
-                              onPressed: () => _permanentDelete(item),
-                              tooltip: 'Delete forever',
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
     );
   }
 

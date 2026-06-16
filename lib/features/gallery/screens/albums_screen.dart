@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../../app/shell_screen.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/staggered_animation.dart';
@@ -25,6 +26,27 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   bool _isDragging = false;
   final Set<String> _dragSelectedIds = {};
   String? _lastDraggedAssetId;
+
+  @override
+  void initState() {
+    super.initState();
+    resetAlbumDetail.addListener(_onResetAlbumDetail);
+  }
+
+  @override
+  void dispose() {
+    resetAlbumDetail.removeListener(_onResetAlbumDetail);
+    super.dispose();
+  }
+
+  void _onResetAlbumDetail() {
+    if (_selectedAlbum != null) {
+      setState(() {
+        _selectedAlbum = null;
+        _albumAssets = [];
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +133,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       _isLoadingAlbum = true;
       _selectedAlbum = album;
     });
+    ref.read(isAlbumDetailProvider.notifier).state = true;
 
     try {
       final assets = await album.getAssetListPaged(page: 0, size: 200);
@@ -124,6 +147,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         _isLoadingAlbum = false;
         _selectedAlbum = null;
       });
+      ref.read(isAlbumDetailProvider.notifier).state = false;
     }
   }
 
@@ -220,34 +244,15 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         title: Text(_selectedAlbum?.name ?? 'Album'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => setState(() {
-            _selectedAlbum = null;
-            _albumAssets = [];
-          }),
+          onPressed: () {
+            ref.read(isAlbumDetailProvider.notifier).state = false;
+            setState(() {
+              _selectedAlbum = null;
+              _albumAssets = [];
+            });
+          },
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$gridColumns',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        actions: [],
       ),
       body: _isLoadingAlbum
           ? const Center(child: CircularProgressIndicator())
@@ -262,6 +267,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                   onPointerDown: (event) {
                     _pointers[event.pointer] = event.position;
                     if (_pointers.length == 2) {
+                      ref.read(isPinchingProvider.notifier).state = true;
                       final pts = _pointers.values.toList();
                       _scaleStart = (pts[0] - pts[1]).distance;
                     }
@@ -273,8 +279,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                       final currentDist = (pts[0] - pts[1]).distance;
                       if (_scaleStart > 0) {
                         final scale = currentDist / _scaleStart;
-                        final notifier =
-                            ref.read(galleryProvider.notifier);
+                        final notifier = ref.read(galleryProvider.notifier);
                         final current = ref.read(galleryProvider).gridColumns;
 
                         if (scale > 1.225) {
@@ -299,12 +304,14 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                     _pointers.remove(event.pointer);
                     if (_pointers.length < 2) {
                       _scaleStart = 0;
+                      ref.read(isPinchingProvider.notifier).state = false;
                     }
                   },
                   onPointerCancel: (event) {
                     _pointers.remove(event.pointer);
                     if (_pointers.length < 2) {
                       _scaleStart = 0;
+                      ref.read(isPinchingProvider.notifier).state = false;
                     }
                   },
                   child: GestureDetector(
@@ -313,8 +320,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                     onLongPressEnd: (_) => _onDragEnd(),
                     child: GridView.builder(
                       padding: const EdgeInsets.all(2),
-                      gridDelegate:
-                          SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: gridColumns,
                         mainAxisSpacing: 2,
                         crossAxisSpacing: 2,

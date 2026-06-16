@@ -6,6 +6,7 @@ import '../features/auth/screens/pin_setup_screen.dart';
 import '../features/auth/screens/lock_screen.dart';
 import '../features/vault/screens/vault_screen.dart';
 import '../features/viewer/screens/viewer_screen.dart';
+import '../features/settings/screens/settings_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
 import 'shell_screen.dart';
 
@@ -56,6 +57,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/vault',
         builder: (context, state) => const VaultScreen(),
+      ),
+      GoRoute(
+        path: '/trash',
+        builder: (context, state) => const TrashScreen(),
       ),
       GoRoute(
         path: '/viewer',

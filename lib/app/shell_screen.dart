@@ -7,8 +7,10 @@ import '../features/gallery/screens/albums_screen.dart';
 import '../features/gallery/screens/search_screen.dart';
 import '../features/settings/screens/convert_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
+import '../features/gallery/providers/gallery_provider.dart';
 
 final searchFocusTrigger = ValueNotifier<int>(0);
+final resetAlbumDetail = ValueNotifier<int>(0);
 
 class ShellScreen extends ConsumerStatefulWidget {
   final Widget child;
@@ -18,7 +20,8 @@ class ShellScreen extends ConsumerStatefulWidget {
   ConsumerState<ShellScreen> createState() => _ShellScreenState();
 }
 
-class _ShellScreenState extends ConsumerState<ShellScreen> {
+class _ShellScreenState extends ConsumerState<ShellScreen>
+    with WidgetsBindingObserver {
   int _currentIndex = 1;
   int? _previousIndex;
   late final PageController _pageController;
@@ -36,13 +39,25 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pageController = PageController(initialPage: _currentIndex);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (ref.read(isAlbumDetailProvider)) {
+      ref.read(isAlbumDetailProvider.notifier).state = false;
+      resetAlbumDetail.value++;
+      return true;
+    }
+    return false;
   }
 
   @override
@@ -74,41 +89,44 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPinching = ref.watch(isPinchingProvider);
+
     return Scaffold(
-      body: Stack(
-        children: [
-          PageView.builder(
-            controller: _pageController,
-            onPageChanged: (index) {
-              if (index != _currentIndex) {
-                setState(() {
-                  _previousIndex = _currentIndex;
-                  _currentIndex = index;
-                });
-                context.go(_tabs[index]);
-              }
-            },
-            itemCount: _screens.length,
-            itemBuilder: (context, index) => _screens[index],
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: GallerioNavBar(
-              currentIndex: _currentIndex,
-              previousIndex: _previousIndex,
-              onTap: (index) {
-                if (index == _currentIndex) {
-                  if (index == 2) {
-                    searchFocusTrigger.value++;
-                  }
-                  return;
+        body: Stack(
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              physics: isPinching ? const NeverScrollableScrollPhysics() : null,
+              onPageChanged: (index) {
+                if (index != _currentIndex) {
+                  setState(() {
+                    _previousIndex = _currentIndex;
+                    _currentIndex = index;
+                  });
+                  context.go(_tabs[index]);
                 }
-                _switchTab(index);
               },
+              itemCount: _screens.length,
+              itemBuilder: (context, index) => _screens[index],
             ),
-          ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: GallerioNavBar(
+                currentIndex: _currentIndex,
+                previousIndex: _previousIndex,
+                onTap: (index) {
+                  if (index == _currentIndex) {
+                    if (index == 2) {
+                      searchFocusTrigger.value++;
+                    }
+                    return;
+                  }
+                  _switchTab(index);
+                },
+              ),
+            ),
         ],
       ),
     );

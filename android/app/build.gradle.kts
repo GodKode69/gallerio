@@ -34,14 +34,6 @@ android {
             isShrinkResources = true
         }
     }
-
-    applicationVariants.all {
-        val variant = this
-        variant.outputs.all {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            output.outputFileName = "gallerio.apk"
-        }
-    }
 }
 
 kotlin {

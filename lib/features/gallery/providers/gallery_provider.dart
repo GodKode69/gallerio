@@ -40,7 +40,7 @@ class GalleryState {
     this.error,
     this.page = 0,
     this.hasMore = true,
-    this.gridColumns = 5,
+    this.gridColumns = 4,
     this.selectedAssetIds = const {},
     this.isSelectionMode = false,
     this.favoriteIds = const {},
@@ -388,8 +388,14 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<void> _loadGridColumns() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final columns = prefs.getInt('grid_columns') ?? 5;
-      state = state.copyWith(gridColumns: columns.clamp(3, 6));
+      final saved = prefs.getInt('grid_columns');
+      if (saved == 5) {
+        await prefs.remove('grid_columns');
+        state = state.copyWith(gridColumns: 4);
+      } else {
+        final columns = saved ?? 4;
+        state = state.copyWith(gridColumns: columns.clamp(3, 6));
+      }
     } catch (_) {}
   }
 
@@ -404,3 +410,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 final galleryProvider = StateNotifierProvider<GalleryNotifier, GalleryState>(
   (ref) => GalleryNotifier(),
 );
+
+final isPinchingProvider = StateProvider<bool>((ref) => false);
+
+final isAlbumDetailProvider = StateProvider<bool>((ref) => false);
