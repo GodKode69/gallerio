@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../providers/vault_provider.dart';
 import '../widgets/vault_grid.dart';
-import '../widgets/vault_album_selector.dart';
 import '../widgets/vault_import_button.dart';
 
 class VaultScreen extends ConsumerStatefulWidget {
@@ -17,8 +16,6 @@ class VaultScreen extends ConsumerStatefulWidget {
 }
 
 class _VaultScreenState extends ConsumerState<VaultScreen> {
-  bool _isAlbumSelectorOpen = false;
-
   @override
   Widget build(BuildContext context) {
     final vaultState = ref.watch(vaultProvider);
@@ -28,7 +25,7 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
         title: const Text('Vault'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
+          onPressed: () => context.go('/gallery'),
         ),
         actions: [
           IconButton(
@@ -40,50 +37,56 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(vaultProvider.notifier).selectAlbum(null),
-          ),
         ],
       ),
-      body: Column(
-        children: [
-          VaultAlbumSelector(
-            albums: vaultState.albums,
-            currentAlbum: vaultState.currentAlbum,
-            isOpen: _isAlbumSelectorOpen,
-            onToggle: () =>
-                setState(() => _isAlbumSelectorOpen = !_isAlbumSelectorOpen),
-            onAlbumSelected: (album) {
-              ref.read(vaultProvider.notifier).selectAlbum(album);
-              setState(() => _isAlbumSelectorOpen = false);
-            },
-            onShowAll: () {
-              ref.read(vaultProvider.notifier).selectAlbum(null);
-              setState(() => _isAlbumSelectorOpen = false);
-            },
-          ),
-          Expanded(
-            child: vaultState.isLoading && vaultState.filteredItems.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : VaultGrid(
-                    items: vaultState.filteredItems,
-                    onTap: (item) async {
-                      final file =
-                          await ref.read(vaultProvider.notifier).decryptForViewing(item);
-                      if (file != null && context.mounted) {
-                        context.push('/viewer', extra: {
-                          'filePath': file.path,
-                          'title': item.name,
-                          'isVaultItem': true,
-                          'vaultItemId': item.id,
-                        });
-                      }
-                    },
+      body: vaultState.isLoading && vaultState.filteredItems.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : VaultGrid(
+              items: vaultState.filteredItems,
+              onTap: (item) async {
+                final file =
+                    await ref.read(vaultProvider.notifier).decryptForViewing(item);
+                if (file != null && context.mounted) {
+                  context.push('/viewer', extra: {
+                    'filePath': file.path,
+                    'title': item.name,
+                    'isVaultItem': true,
+                    'vaultItemId': item.id,
+                  });
+                }
+              },
+              onDelete: (item) async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+                    title: Row(
+                      children: [
+                        const Text('Remove from vault?'),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Remove',
+                              style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
                   ),
-          ),
-        ],
-      ),
+                );
+                if (confirmed == true) {
+                  await ref
+                      .read(vaultProvider.notifier)
+                      .deleteItem(item.id);
+                }
+              },
+            ),
       floatingActionButton: const VaultImportButton(),
     );
   }

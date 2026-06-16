@@ -7,6 +7,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import '../../../core/trash/trash_service.dart';
 
 class ViewerScreen extends StatefulWidget {
   final String? assetId;
@@ -191,62 +192,46 @@ class _ViewerScreenState extends State<ViewerScreen>
   }
 
   Widget _buildVideoThumbnail() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    return GestureDetector(
+      onTap: _openInSystemPlayer,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
           if (_asset != null)
-            AspectRatio(
-              aspectRatio: 1,
+            Center(
               child: Hero(
                 tag: 'gallery-thumb-${_asset!.id}',
-                child: AssetEntityImage(
-                  _asset!,
-                  isOriginal: false,
-                  thumbnailSize: const ThumbnailSize.square(400),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[900],
-                      child: const Icon(Icons.broken_image,
-                          color: Colors.white24),
-                    );
-                  },
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: AssetEntityImage(
+                    _asset!,
+                    isOriginal: false,
+                    thumbnailSize: const ThumbnailSize.square(400),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[900],
+                        child: const Icon(Icons.broken_image,
+                            color: Colors.white24),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
-          const SizedBox(height: 24),
-          GestureDetector(
-            onTap: _openInSystemPlayer,
+          Center(
             child: Container(
-              width: 80,
-              height: 80,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
+                color: Colors.black.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.play_arrow_rounded,
                 color: Colors.white,
-                size: 48,
+                size: 32,
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Tap to play in default player',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
-              fontSize: 12,
             ),
           ),
         ],
@@ -294,7 +279,7 @@ class _ViewerScreenState extends State<ViewerScreen>
             children: [
               _buildTopBar(),
               const Spacer(),
-              _buildBottomBar(),
+              if (!_isVideo) _buildBottomBar(),
             ],
           ),
         ),
@@ -442,31 +427,42 @@ class _ViewerScreenState extends State<ViewerScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete?'),
-        content: const Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        title: Row(
+          children: [
+            const Text('Delete?'),
+            const Spacer(),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
       ),
     );
 
     if (confirmed == true && mounted) {
       try {
         if (_asset != null) {
-          await PhotoManager.editor.deleteWithIds([_asset!.id]);
-        }
-        if (mounted) {
-          context.pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Deleted')),
-          );
+          final success = await TrashService().deleteWithTrash(_asset!);
+          if (success && mounted) {
+            context.pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Moved to trash')),
+            );
+          } else if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Could not delete. Grant storage permission in Settings.')),
+            );
+          }
         }
       } catch (e) {
         if (mounted) {

@@ -20,6 +20,7 @@ class ShellScreen extends ConsumerStatefulWidget {
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   int _currentIndex = 1;
+  int? _previousIndex;
   late final PageController _pageController;
 
   static const _tabs = ['/albums', '/gallery', '/search', '/convert', '/settings'];
@@ -50,20 +51,25 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final location = GoRouterState.of(context).matchedLocation;
     final idx = _tabs.indexWhere((t) => location.startsWith(t));
     if (idx >= 0 && idx != _currentIndex) {
-      setState(() => _currentIndex = idx);
+      setState(() {
+        _previousIndex = _currentIndex;
+        _currentIndex = idx;
+      });
       _pageController.jumpToPage(idx);
     }
   }
 
   void _switchTab(int index) {
     if (index == _currentIndex) return;
-    setState(() => _currentIndex = index);
+    setState(() {
+      _previousIndex = _currentIndex;
+      _currentIndex = index;
+    });
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOutCubic,
     );
-    context.go(_tabs[index]);
   }
 
   @override
@@ -73,7 +79,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         controller: _pageController,
         onPageChanged: (index) {
           if (index != _currentIndex) {
-            setState(() => _currentIndex = index);
+            setState(() {
+              _previousIndex = _currentIndex;
+              _currentIndex = index;
+            });
             context.go(_tabs[index]);
           }
         },
@@ -82,6 +91,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       ),
       bottomNavigationBar: GallerioNavBar(
         currentIndex: _currentIndex,
+        previousIndex: _previousIndex,
         onTap: (index) {
           if (index == _currentIndex) {
             if (index == 2) {

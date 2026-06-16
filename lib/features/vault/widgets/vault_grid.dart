@@ -1,14 +1,18 @@
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../core/database/database.dart';
 
 class VaultGrid extends StatelessWidget {
   final List<VaultItem> items;
   final void Function(VaultItem item) onTap;
+  final void Function(VaultItem item)? onDelete;
 
   const VaultGrid({
     super.key,
     required this.items,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -58,6 +62,7 @@ class VaultGrid extends StatelessWidget {
         return _VaultItemTile(
           item: item,
           onTap: () => onTap(item),
+          onDelete: onDelete != null ? () => onDelete!(item) : null,
         );
       },
     );
@@ -67,16 +72,49 @@ class VaultGrid extends StatelessWidget {
 class _VaultItemTile extends StatelessWidget {
   final VaultItem item;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   const _VaultItemTile({
     required this.item,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onDelete != null
+          ? () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+                  title: Row(
+                    children: [
+                      const Text('Remove from vault?'),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Remove',
+                            style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              if (confirmed == true) {
+                onDelete?.call();
+              }
+            }
+          : null,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.grey[900],
@@ -85,13 +123,34 @@ class _VaultItemTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Center(
-              child: Icon(
-                _getIconForMime(item.mimeType),
-                color: Colors.white24,
-                size: 40,
+            if (item.thumbnailPath != null &&
+                File(item.thumbnailPath!).existsSync())
+              ClipRect(
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Image.file(
+                    File(item.thumbnailPath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Icon(
+                          _getIconForMime(item.mimeType),
+                          color: Colors.white24,
+                          size: 40,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              )
+            else
+              Center(
+                child: Icon(
+                  _getIconForMime(item.mimeType),
+                  color: Colors.white24,
+                  size: 40,
+                ),
               ),
-            ),
             if (item.isFavorite)
               Positioned(
                 top: 4,

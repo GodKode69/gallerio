@@ -22,12 +22,22 @@ class VaultItems extends Table {
   TextColumn get iv => text()();
 }
 
-@DriftDatabase(tables: [VaultItems])
+class TrashItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get assetId => text()();
+  TextColumn get name => text()();
+  TextColumn get trashPath => text()();
+  TextColumn get mimeType => text().withDefault(const Constant(''))();
+  IntColumn get size => integer().withDefault(const Constant(0))();
+  DateTimeColumn get deletedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+@DriftDatabase(tables: [VaultItems, TrashItems])
 class GallerioDatabase extends _$GallerioDatabase {
   GallerioDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -35,12 +45,13 @@ class GallerioDatabase extends _$GallerioDatabase {
           await m.createAll();
         },
         onUpgrade: (m, from, to) async {
-          for (final table in allTables) {
-            await m.deleteTable(table.actualTableName);
-            await m.createTable(table);
+          if (from < 2) {
+            await m.createTable(trashItems);
           }
         },
       );
+
+  // --- Vault Items ---
 
   Future<int> insertVaultItem(VaultItemsCompanion item) =>
       into(vaultItems).insert(item);
@@ -89,6 +100,36 @@ class GallerioDatabase extends _$GallerioDatabase {
 
   Stream<List<VaultItem>> watchFavoriteItems() =>
       (select(vaultItems)..where((t) => t.isFavorite.equals(true))).watch();
+
+  // --- Trash Items ---
+
+  Future<int> insertTrashItem(TrashItemsCompanion item) =>
+      into(trashItems).insert(item);
+
+  Future<List<TrashItem>> getAllTrashItems() => select(trashItems).get();
+
+  Future<TrashItem?> getTrashItemById(int id) =>
+      (select(trashItems)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  Future<int> deleteTrashItem(int id) =>
+      (delete(trashItems)..where((t) => t.id.equals(id))).go();
+
+  Future<int> deleteAllTrashItems() => delete(trashItems).go();
+
+  Future<int> purgeExpiredTrash(DateTime cutoff) async {
+    final expired = await (select(trashItems)
+          ..where((t) => t.deletedAt.isSmallerThanValue(cutoff)))
+        .get();
+    for (final item in expired) {
+      final file = File(item.trashPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+    return (delete(trashItems)
+          ..where((t) => t.deletedAt.isSmallerThanValue(cutoff)))
+        .go();
+  }
 }
 
 LazyDatabase _openConnection() {

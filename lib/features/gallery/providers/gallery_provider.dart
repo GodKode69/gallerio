@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/trash/trash_service.dart';
 
 enum SortField { date, name, size }
 
@@ -107,6 +109,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<void> init() async {
     state = state.copyWith(isLoading: true);
     await _requestPermission();
+    await _requestStoragePermission();
 
     if (state.hasPermission) {
       await _loadAlbums();
@@ -115,12 +118,22 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
       await _loadGridColumns();
       await _loadFavorites();
       await _loadSortOrder();
+
+      TrashService().purgeExpired();
     }
   }
 
   Future<void> _requestPermission() async {
     final PermissionState ps = await PhotoManager.requestPermissionExtend();
     state = state.copyWith(hasPermission: ps.isAuth || ps.hasAccess);
+  }
+
+  Future<void> _requestStoragePermission() async {
+    try {
+      if (await Permission.manageExternalStorage.isGranted) return;
+      if (await Permission.manageExternalStorage.isPermanentlyDenied) return;
+      await Permission.manageExternalStorage.request();
+    } catch (_) {}
   }
 
   Future<void> _loadAlbums() async {

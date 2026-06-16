@@ -18,6 +18,8 @@ class GalleryScreen extends ConsumerStatefulWidget {
 class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   double _scaleStart = 1.0;
   final ScrollController _scrollController = ScrollController();
+  final Map<int, Offset> _pointers = {};
+  bool _isPinching = false;
 
   @override
   void dispose() {
@@ -65,14 +67,16 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
                   ref.read(galleryProvider.notifier).exitSelectionMode(),
             ),
           ] else ...[
-            if (showFavoritesOnly)
-              IconButton(
-                icon: const Icon(Icons.favorite, color: Colors.redAccent),
-                onPressed: () => ref
-                    .read(galleryProvider.notifier)
-                    .setShowFavoritesOnly(false),
-                tooltip: 'Show all',
+            IconButton(
+              icon: Icon(
+                showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
+                color: showFavoritesOnly ? Colors.redAccent : Colors.white70,
               ),
+              onPressed: () => ref
+                  .read(galleryProvider.notifier)
+                  .setShowFavoritesOnly(!showFavoritesOnly),
+              tooltip: showFavoritesOnly ? 'Show all' : 'Favorites',
+            ),
             IconButton(
               icon: const Icon(Icons.sort),
               onPressed: () => SortSheet.show(context),
@@ -132,35 +136,67 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               : RefreshIndicator(
                   color: Theme.of(context).colorScheme.primary,
                   backgroundColor: const Color(0xFF1A1A1A),
-                  onRefresh: () async {
+                  onRefresh: _isPinching ? () async {} : () async {
                     await ref.read(galleryProvider.notifier).refresh();
                   },
                   child: Stack(
                     children: [
-                      GestureDetector(
-                        onScaleStart: (details) {
-                          _scaleStart = 1.0;
+                      Listener(
+                        onPointerDown: (event) {
+                          _pointers[event.pointer] = event.position;
+                          if (_pointers.length == 2) {
+                            _isPinching = true;
+                            final pts = _pointers.values.toList();
+                            _scaleStart = (pts[0] - pts[1]).distance;
+                          }
                         },
-                        onScaleUpdate: (details) {
-                          final scale = details.scale;
-                          final notifier =
-                              ref.read(galleryProvider.notifier);
-                          final current = ref.read(galleryProvider).gridColumns;
+                        onPointerMove: (event) {
+                          _pointers[event.pointer] = event.position;
+                          if (_pointers.length == 2) {
+                            final pts = _pointers.values.toList();
+                            final currentDist =
+                                (pts[0] - pts[1]).distance;
+                            if (_scaleStart > 0) {
+                              final scale =
+                                  currentDist / _scaleStart;
+                              final notifier =
+                                  ref.read(galleryProvider.notifier);
+                              final current =
+                                  ref.read(galleryProvider).gridColumns;
 
-                          if (_scaleStart < 1.0 && scale > 1.1) {
-                            final newColumns = current - 1;
-                            if (newColumns >= 3 && newColumns != current) {
-                              HapticFeedback.lightImpact();
-                              notifier.setGridColumns(newColumns);
-                            }
-                          } else if (_scaleStart > 1.0 && scale < 0.9) {
-                            final newColumns = current + 1;
-                            if (newColumns <= 6 && newColumns != current) {
-                              HapticFeedback.lightImpact();
-                              notifier.setGridColumns(newColumns);
+                              if (scale > 1.225) {
+                                final newColumns = current - 1;
+                                if (newColumns >= 3 &&
+                                    newColumns != current) {
+                                  HapticFeedback.lightImpact();
+                                  notifier.setGridColumns(newColumns);
+                                  _scaleStart = currentDist;
+                                }
+                              } else if (scale < 0.775) {
+                                final newColumns = current + 1;
+                                if (newColumns <= 6 &&
+                                    newColumns != current) {
+                                  HapticFeedback.lightImpact();
+                                  notifier.setGridColumns(newColumns);
+                                  _scaleStart = currentDist;
+                                }
+                              }
                             }
                           }
-                          _scaleStart = scale;
+                        },
+                        onPointerUp: (event) {
+                          _pointers.remove(event.pointer);
+                          if (_pointers.length < 2) {
+                            _scaleStart = 0;
+                            _isPinching = false;
+                          }
+                        },
+                        onPointerCancel: (event) {
+                          _pointers.remove(event.pointer);
+                          if (_pointers.length < 2) {
+                            _scaleStart = 0;
+                            _isPinching = false;
+                          }
                         },
                         child: MonthlyGallery(
                           assets: displayAssets,

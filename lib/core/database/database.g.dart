@@ -703,15 +703,453 @@ class VaultItemsCompanion extends UpdateCompanion<VaultItem> {
   }
 }
 
+class $TrashItemsTable extends TrashItems
+    with TableInfo<$TrashItemsTable, TrashItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TrashItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _assetIdMeta = const VerificationMeta(
+    'assetId',
+  );
+  @override
+  late final GeneratedColumn<String> assetId = GeneratedColumn<String>(
+    'asset_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _trashPathMeta = const VerificationMeta(
+    'trashPath',
+  );
+  @override
+  late final GeneratedColumn<String> trashPath = GeneratedColumn<String>(
+    'trash_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mimeTypeMeta = const VerificationMeta(
+    'mimeType',
+  );
+  @override
+  late final GeneratedColumn<String> mimeType = GeneratedColumn<String>(
+    'mime_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _sizeMeta = const VerificationMeta('size');
+  @override
+  late final GeneratedColumn<int> size = GeneratedColumn<int>(
+    'size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    assetId,
+    name,
+    trashPath,
+    mimeType,
+    size,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'trash_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TrashItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('asset_id')) {
+      context.handle(
+        _assetIdMeta,
+        assetId.isAcceptableOrUnknown(data['asset_id']!, _assetIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_assetIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('trash_path')) {
+      context.handle(
+        _trashPathMeta,
+        trashPath.isAcceptableOrUnknown(data['trash_path']!, _trashPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_trashPathMeta);
+    }
+    if (data.containsKey('mime_type')) {
+      context.handle(
+        _mimeTypeMeta,
+        mimeType.isAcceptableOrUnknown(data['mime_type']!, _mimeTypeMeta),
+      );
+    }
+    if (data.containsKey('size')) {
+      context.handle(
+        _sizeMeta,
+        size.isAcceptableOrUnknown(data['size']!, _sizeMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TrashItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TrashItem(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      assetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      trashPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trash_path'],
+      )!,
+      mimeType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mime_type'],
+      )!,
+      size: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}size'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TrashItemsTable createAlias(String alias) {
+    return $TrashItemsTable(attachedDatabase, alias);
+  }
+}
+
+class TrashItem extends DataClass implements Insertable<TrashItem> {
+  final int id;
+  final String assetId;
+  final String name;
+  final String trashPath;
+  final String mimeType;
+  final int size;
+  final DateTime deletedAt;
+  const TrashItem({
+    required this.id,
+    required this.assetId,
+    required this.name,
+    required this.trashPath,
+    required this.mimeType,
+    required this.size,
+    required this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['asset_id'] = Variable<String>(assetId);
+    map['name'] = Variable<String>(name);
+    map['trash_path'] = Variable<String>(trashPath);
+    map['mime_type'] = Variable<String>(mimeType);
+    map['size'] = Variable<int>(size);
+    map['deleted_at'] = Variable<DateTime>(deletedAt);
+    return map;
+  }
+
+  TrashItemsCompanion toCompanion(bool nullToAbsent) {
+    return TrashItemsCompanion(
+      id: Value(id),
+      assetId: Value(assetId),
+      name: Value(name),
+      trashPath: Value(trashPath),
+      mimeType: Value(mimeType),
+      size: Value(size),
+      deletedAt: Value(deletedAt),
+    );
+  }
+
+  factory TrashItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TrashItem(
+      id: serializer.fromJson<int>(json['id']),
+      assetId: serializer.fromJson<String>(json['assetId']),
+      name: serializer.fromJson<String>(json['name']),
+      trashPath: serializer.fromJson<String>(json['trashPath']),
+      mimeType: serializer.fromJson<String>(json['mimeType']),
+      size: serializer.fromJson<int>(json['size']),
+      deletedAt: serializer.fromJson<DateTime>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'assetId': serializer.toJson<String>(assetId),
+      'name': serializer.toJson<String>(name),
+      'trashPath': serializer.toJson<String>(trashPath),
+      'mimeType': serializer.toJson<String>(mimeType),
+      'size': serializer.toJson<int>(size),
+      'deletedAt': serializer.toJson<DateTime>(deletedAt),
+    };
+  }
+
+  TrashItem copyWith({
+    int? id,
+    String? assetId,
+    String? name,
+    String? trashPath,
+    String? mimeType,
+    int? size,
+    DateTime? deletedAt,
+  }) => TrashItem(
+    id: id ?? this.id,
+    assetId: assetId ?? this.assetId,
+    name: name ?? this.name,
+    trashPath: trashPath ?? this.trashPath,
+    mimeType: mimeType ?? this.mimeType,
+    size: size ?? this.size,
+    deletedAt: deletedAt ?? this.deletedAt,
+  );
+  TrashItem copyWithCompanion(TrashItemsCompanion data) {
+    return TrashItem(
+      id: data.id.present ? data.id.value : this.id,
+      assetId: data.assetId.present ? data.assetId.value : this.assetId,
+      name: data.name.present ? data.name.value : this.name,
+      trashPath: data.trashPath.present ? data.trashPath.value : this.trashPath,
+      mimeType: data.mimeType.present ? data.mimeType.value : this.mimeType,
+      size: data.size.present ? data.size.value : this.size,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TrashItem(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('name: $name, ')
+          ..write('trashPath: $trashPath, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('size: $size, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, assetId, name, trashPath, mimeType, size, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TrashItem &&
+          other.id == this.id &&
+          other.assetId == this.assetId &&
+          other.name == this.name &&
+          other.trashPath == this.trashPath &&
+          other.mimeType == this.mimeType &&
+          other.size == this.size &&
+          other.deletedAt == this.deletedAt);
+}
+
+class TrashItemsCompanion extends UpdateCompanion<TrashItem> {
+  final Value<int> id;
+  final Value<String> assetId;
+  final Value<String> name;
+  final Value<String> trashPath;
+  final Value<String> mimeType;
+  final Value<int> size;
+  final Value<DateTime> deletedAt;
+  const TrashItemsCompanion({
+    this.id = const Value.absent(),
+    this.assetId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.trashPath = const Value.absent(),
+    this.mimeType = const Value.absent(),
+    this.size = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+  });
+  TrashItemsCompanion.insert({
+    this.id = const Value.absent(),
+    required String assetId,
+    required String name,
+    required String trashPath,
+    this.mimeType = const Value.absent(),
+    this.size = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+  }) : assetId = Value(assetId),
+       name = Value(name),
+       trashPath = Value(trashPath);
+  static Insertable<TrashItem> custom({
+    Expression<int>? id,
+    Expression<String>? assetId,
+    Expression<String>? name,
+    Expression<String>? trashPath,
+    Expression<String>? mimeType,
+    Expression<int>? size,
+    Expression<DateTime>? deletedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (assetId != null) 'asset_id': assetId,
+      if (name != null) 'name': name,
+      if (trashPath != null) 'trash_path': trashPath,
+      if (mimeType != null) 'mime_type': mimeType,
+      if (size != null) 'size': size,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+    });
+  }
+
+  TrashItemsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? assetId,
+    Value<String>? name,
+    Value<String>? trashPath,
+    Value<String>? mimeType,
+    Value<int>? size,
+    Value<DateTime>? deletedAt,
+  }) {
+    return TrashItemsCompanion(
+      id: id ?? this.id,
+      assetId: assetId ?? this.assetId,
+      name: name ?? this.name,
+      trashPath: trashPath ?? this.trashPath,
+      mimeType: mimeType ?? this.mimeType,
+      size: size ?? this.size,
+      deletedAt: deletedAt ?? this.deletedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (assetId.present) {
+      map['asset_id'] = Variable<String>(assetId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (trashPath.present) {
+      map['trash_path'] = Variable<String>(trashPath.value);
+    }
+    if (mimeType.present) {
+      map['mime_type'] = Variable<String>(mimeType.value);
+    }
+    if (size.present) {
+      map['size'] = Variable<int>(size.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TrashItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('assetId: $assetId, ')
+          ..write('name: $name, ')
+          ..write('trashPath: $trashPath, ')
+          ..write('mimeType: $mimeType, ')
+          ..write('size: $size, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$GallerioDatabase extends GeneratedDatabase {
   _$GallerioDatabase(QueryExecutor e) : super(e);
   $GallerioDatabaseManager get managers => $GallerioDatabaseManager(this);
   late final $VaultItemsTable vaultItems = $VaultItemsTable(this);
+  late final $TrashItemsTable trashItems = $TrashItemsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [vaultItems];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [vaultItems, trashItems];
 }
 
 typedef $$VaultItemsTableCreateCompanionBuilder =
@@ -1051,10 +1489,244 @@ typedef $$VaultItemsTableProcessedTableManager =
       VaultItem,
       PrefetchHooks Function()
     >;
+typedef $$TrashItemsTableCreateCompanionBuilder =
+    TrashItemsCompanion Function({
+      Value<int> id,
+      required String assetId,
+      required String name,
+      required String trashPath,
+      Value<String> mimeType,
+      Value<int> size,
+      Value<DateTime> deletedAt,
+    });
+typedef $$TrashItemsTableUpdateCompanionBuilder =
+    TrashItemsCompanion Function({
+      Value<int> id,
+      Value<String> assetId,
+      Value<String> name,
+      Value<String> trashPath,
+      Value<String> mimeType,
+      Value<int> size,
+      Value<DateTime> deletedAt,
+    });
+
+class $$TrashItemsTableFilterComposer
+    extends Composer<_$GallerioDatabase, $TrashItemsTable> {
+  $$TrashItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trashPath => $composableBuilder(
+    column: $table.trashPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get size => $composableBuilder(
+    column: $table.size,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TrashItemsTableOrderingComposer
+    extends Composer<_$GallerioDatabase, $TrashItemsTable> {
+  $$TrashItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetId => $composableBuilder(
+    column: $table.assetId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trashPath => $composableBuilder(
+    column: $table.trashPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mimeType => $composableBuilder(
+    column: $table.mimeType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get size => $composableBuilder(
+    column: $table.size,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TrashItemsTableAnnotationComposer
+    extends Composer<_$GallerioDatabase, $TrashItemsTable> {
+  $$TrashItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get assetId =>
+      $composableBuilder(column: $table.assetId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get trashPath =>
+      $composableBuilder(column: $table.trashPath, builder: (column) => column);
+
+  GeneratedColumn<String> get mimeType =>
+      $composableBuilder(column: $table.mimeType, builder: (column) => column);
+
+  GeneratedColumn<int> get size =>
+      $composableBuilder(column: $table.size, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$TrashItemsTableTableManager
+    extends
+        RootTableManager<
+          _$GallerioDatabase,
+          $TrashItemsTable,
+          TrashItem,
+          $$TrashItemsTableFilterComposer,
+          $$TrashItemsTableOrderingComposer,
+          $$TrashItemsTableAnnotationComposer,
+          $$TrashItemsTableCreateCompanionBuilder,
+          $$TrashItemsTableUpdateCompanionBuilder,
+          (
+            TrashItem,
+            BaseReferences<_$GallerioDatabase, $TrashItemsTable, TrashItem>,
+          ),
+          TrashItem,
+          PrefetchHooks Function()
+        > {
+  $$TrashItemsTableTableManager(_$GallerioDatabase db, $TrashItemsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TrashItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TrashItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TrashItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> assetId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> trashPath = const Value.absent(),
+                Value<String> mimeType = const Value.absent(),
+                Value<int> size = const Value.absent(),
+                Value<DateTime> deletedAt = const Value.absent(),
+              }) => TrashItemsCompanion(
+                id: id,
+                assetId: assetId,
+                name: name,
+                trashPath: trashPath,
+                mimeType: mimeType,
+                size: size,
+                deletedAt: deletedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String assetId,
+                required String name,
+                required String trashPath,
+                Value<String> mimeType = const Value.absent(),
+                Value<int> size = const Value.absent(),
+                Value<DateTime> deletedAt = const Value.absent(),
+              }) => TrashItemsCompanion.insert(
+                id: id,
+                assetId: assetId,
+                name: name,
+                trashPath: trashPath,
+                mimeType: mimeType,
+                size: size,
+                deletedAt: deletedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TrashItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$GallerioDatabase,
+      $TrashItemsTable,
+      TrashItem,
+      $$TrashItemsTableFilterComposer,
+      $$TrashItemsTableOrderingComposer,
+      $$TrashItemsTableAnnotationComposer,
+      $$TrashItemsTableCreateCompanionBuilder,
+      $$TrashItemsTableUpdateCompanionBuilder,
+      (
+        TrashItem,
+        BaseReferences<_$GallerioDatabase, $TrashItemsTable, TrashItem>,
+      ),
+      TrashItem,
+      PrefetchHooks Function()
+    >;
 
 class $GallerioDatabaseManager {
   final _$GallerioDatabase _db;
   $GallerioDatabaseManager(this._db);
   $$VaultItemsTableTableManager get vaultItems =>
       $$VaultItemsTableTableManager(_db, _db.vaultItems);
+  $$TrashItemsTableTableManager get trashItems =>
+      $$TrashItemsTableTableManager(_db, _db.trashItems);
 }

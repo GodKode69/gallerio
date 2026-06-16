@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:local_auth/local_auth.dart';
+import 'dart:io';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/trash/trash_service.dart';
+import '../../../core/database/database.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -128,11 +132,18 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-class _BiometricToggle extends ConsumerWidget {
+class _BiometricToggle extends ConsumerStatefulWidget {
   const _BiometricToggle();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_BiometricToggle> createState() => _BiometricToggleState();
+}
+
+class _BiometricToggleState extends ConsumerState<_BiometricToggle> {
+  final _localAuth = LocalAuthentication();
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
     final notifier = ref.read(authStateProvider.notifier);
 
@@ -149,7 +160,40 @@ class _BiometricToggle extends ConsumerWidget {
       ),
       value: authState.isBiometricEnabled,
       onChanged: (value) async {
-        await notifier.setBiometricEnabled(value);
+        if (value) {
+          try {
+            final canAuth = await _localAuth.canCheckBiometrics;
+            if (!canAuth) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Biometric not available on this device')),
+                );
+              }
+              return;
+            }
+
+            final authenticated = await _localAuth.authenticate(
+              localizedReason: 'Authenticate to enable biometric login',
+              options: const AuthenticationOptions(
+                stickyAuth: true,
+                biometricOnly: false,
+              ),
+            );
+
+            if (!authenticated) return;
+
+            await notifier.setBiometricEnabled(true);
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Biometric error: $e')),
+              );
+            }
+          }
+        } else {
+          await notifier.setBiometricEnabled(false);
+        }
       },
     );
   }
@@ -164,26 +208,208 @@ class _TrashBin extends ConsumerWidget {
       icon: Icons.delete_outline,
       title: 'Trash',
       subtitle: 'View deleted items',
-      onTap: () => _showTrashDialog(context),
+      onTap: () => _openTrashScreen(context),
     );
   }
 
-  void _showTrashDialog(BuildContext context) {
-    showDialog(
+  void _openTrashScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const _TrashScreen()),
+    );
+  }
+}
+
+class _TrashScreen extends StatefulWidget {
+  const _TrashScreen();
+
+  @override
+  State<_TrashScreen> createState() => _TrashScreenState();
+}
+
+class _TrashScreenState extends State<_TrashScreen> {
+  final TrashService _trashService = TrashService();
+  List<TrashItem> _items = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrash();
+  }
+
+  Future<void> _loadTrash() async {
+    setState(() => _isLoading = true);
+    final items = await _trashService.getTrashItems();
+    setState(() {
+      _items = items;
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Trash'),
+        actions: [
+          if (_items.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              onPressed: _emptyTrash,
+              tooltip: 'Empty trash',
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _items.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete_outline,
+                          size: 64, color: Colors.white24),
+                      SizedBox(height: 16),
+                      Text(
+                        'Trash is empty',
+                        style: TextStyle(color: Colors.white54, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: _items.length,
+                  itemBuilder: (context, index) {
+                    final item = _items[index];
+                    final daysLeft = 30 -
+                        DateTime.now().difference(item.deletedAt).inDays;
+                    return Card(
+                      color: const Color(0xFF1D1D1D),
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      child: ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Image.file(
+                              File(item.trashPath),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                item.mimeType == 'video'
+                                    ? Icons.videocam
+                                    : Icons.photo,
+                                color: Colors.white54,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          item.name,
+                          style: const TextStyle(color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          'Deletes in $daysLeft days',
+                          style: TextStyle(
+                            color: daysLeft <= 3
+                                ? Colors.redAccent
+                                : Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.restore,
+                                  color: Colors.white70),
+                              onPressed: () => _restore(item),
+                              tooltip: 'Restore',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_forever,
+                                  color: Colors.redAccent),
+                              onPressed: () => _permanentDelete(item),
+                              tooltip: 'Delete forever',
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+
+  Future<void> _restore(TrashItem item) async {
+    final success = await _trashService.restoreFromTrash(item);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Restored' : 'Failed to restore'),
+        ),
+      );
+      _loadTrash();
+    }
+  }
+
+  Future<void> _permanentDelete(TrashItem item) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Trash'),
-        content: const Text(
-          'Deleted items are kept for 30 days before being permanently removed.',
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
+        title: const Text('Delete forever?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+
+    if (confirmed == true) {
+      await _trashService.permanentDelete(item);
+      _loadTrash();
+    }
+  }
+
+  Future<void> _emptyTrash() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        title: const Text('Empty trash?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Empty', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _trashService.emptyTrash();
+      _loadTrash();
+    }
   }
 }
 

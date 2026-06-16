@@ -23,6 +23,7 @@ class _LockScreenState extends ConsumerState<LockScreen>
   Timer? _lockoutTimer;
   int _remainingSeconds = 0;
   int _remainingAttempts = 5;
+  bool _canUseBiometric = false;
 
   @override
   void initState() {
@@ -35,7 +36,9 @@ class _LockScreenState extends ConsumerState<LockScreen>
       CurvedAnimation(parent: _shakeController, curve: Curves.elasticIn),
     );
     _initLockout();
-    _tryBiometric();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _initBiometric();
+    });
   }
 
   @override
@@ -58,14 +61,22 @@ class _LockScreenState extends ConsumerState<LockScreen>
     } catch (_) {}
   }
 
-  Future<void> _tryBiometric() async {
-    final security = ref.read(securityServiceProvider);
-    final biometricEnabled = await security.isBiometricEnabled();
-    if (!biometricEnabled || !mounted) return;
-
+  Future<void> _initBiometric() async {
     try {
+      final security = ref.read(securityServiceProvider);
+      final biometricEnabled = await security.isBiometricEnabled();
+      if (!biometricEnabled || !mounted) {
+        if (mounted) setState(() => _canUseBiometric = false);
+        return;
+      }
+
       final canAuth = await _localAuth.canCheckBiometrics;
-      if (!canAuth) return;
+      if (!canAuth || !mounted) {
+        if (mounted) setState(() => _canUseBiometric = false);
+        return;
+      }
+
+      if (mounted) setState(() => _canUseBiometric = true);
 
       final authenticated = await _localAuth.authenticate(
         localizedReason: 'Authenticate to access Gallerio',
@@ -76,9 +87,12 @@ class _LockScreenState extends ConsumerState<LockScreen>
       );
 
       if (authenticated && mounted) {
+        ref.read(authStateProvider.notifier).setUnlocked(true);
         context.go('/gallery');
       }
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _canUseBiometric = false);
+    }
   }
 
   void _onDigitPressed(String digit) {
@@ -87,6 +101,9 @@ class _LockScreenState extends ConsumerState<LockScreen>
       HapticFeedback.lightImpact();
       _pinController.text += digit;
       setState(() {});
+      if (_pinController.text.length == 6) {
+        _verifyPin();
+      }
     }
   }
 
@@ -218,26 +235,27 @@ class _LockScreenState extends ConsumerState<LockScreen>
             const Spacer(),
             _buildKeypad(),
             const SizedBox(height: 20),
-            TextButton(
-              onPressed: locked ? null : _tryBiometric,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.fingerprint,
-                      size: 20,
-                      color: locked
-                          ? Colors.white24
-                          : Colors.white70),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Use biometric',
-                    style: TextStyle(
-                      color: locked ? Colors.white24 : Colors.white70,
+            if (_canUseBiometric)
+              TextButton(
+                onPressed: locked ? null : _initBiometric,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.fingerprint,
+                        size: 20,
+                        color: locked
+                            ? Colors.white24
+                            : Colors.white70),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Use biometric',
+                      style: TextStyle(
+                        color: locked ? Colors.white24 : Colors.white70,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             const SizedBox(height: 24),
           ],
         ),

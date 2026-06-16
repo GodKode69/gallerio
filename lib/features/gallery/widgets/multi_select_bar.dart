@@ -6,6 +6,7 @@ import '../providers/gallery_provider.dart';
 import '../../../core/database/database.dart';
 import '../../../core/encryption/encryption_service.dart';
 import '../../../core/security/security_service.dart';
+import '../../../core/trash/trash_service.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -110,26 +111,31 @@ class MultiSelectBar extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Items?'),
-        content: const Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        title: Row(
+          children: [
+            const Text('Delete Items?'),
+            const Spacer(),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
       ),
     );
 
     if (confirmed == true) {
       final assets = ref.read(galleryProvider.notifier).selectedAssets;
-      final ids = assets.map((a) => a.id).toList();
       try {
-        await PhotoManager.editor.deleteWithIds(ids);
+        await TrashService().deleteMultipleWithTrash(assets);
       } catch (_) {}
       ref.read(galleryProvider.notifier).exitSelectionMode();
       ref.read(galleryProvider.notifier).refresh();

@@ -173,6 +173,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _security.setBiometricEnabled(enabled);
     state = state.copyWith(isBiometricEnabled: enabled);
   }
+
+  void setUnlocked(bool value) {
+    state = state.copyWith(isUnlocked: value);
+  }
 }
 
 final securityServiceProvider = Provider<SecurityService>((ref) {

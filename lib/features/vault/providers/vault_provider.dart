@@ -114,6 +114,11 @@ class VaultNotifier extends StateNotifier<VaultState> {
         await vaultDir.create(recursive: true);
       }
 
+      final thumbDir = Directory(p.join(vaultDir.path, 'thumbs'));
+      if (!await thumbDir.exists()) {
+        await thumbDir.create(recursive: true);
+      }
+
       for (final filePath in filePaths) {
         final encryptedName = _encryption.generateEncryptedName();
         final encryptedPath = p.join(vaultDir.path, '$encryptedName.enc');
@@ -135,6 +140,13 @@ class VaultNotifier extends StateNotifier<VaultState> {
         final size = assetInfo['size'] ?? 0;
         final album = assetInfo['album'] ?? 'Imported';
 
+        String? thumbnailPath;
+        try {
+          final thumbPath = p.join(thumbDir.path, '$encryptedName.thumb');
+          await sourceFile.copy(thumbPath);
+          thumbnailPath = thumbPath;
+        } catch (_) {}
+
         await _db.insertVaultItem(VaultItemsCompanion.insert(
           name: name,
           encryptedPath: encryptedPath,
@@ -143,6 +155,7 @@ class VaultNotifier extends StateNotifier<VaultState> {
           size: Value(size),
           album: Value(album),
           iv: base64Encode(nonce),
+          thumbnailPath: Value(thumbnailPath),
         ));
       }
 

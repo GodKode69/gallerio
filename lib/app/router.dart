@@ -20,10 +20,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoading = authState.isLoading;
       final goingToLock = state.matchedLocation == '/lock';
       final goingToSetup = state.matchedLocation == '/setup';
+      final goingToViewer = state.matchedLocation == '/viewer';
 
       if (isLoading) return null;
 
-      if (isPinSet && !isUnlocked && !goingToLock && !goingToSetup) {
+      if (isPinSet && !isUnlocked && !goingToLock && !goingToSetup && !goingToViewer) {
         return '/lock';
       }
 
