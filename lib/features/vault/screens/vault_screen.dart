@@ -1,0 +1,169 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../providers/vault_provider.dart';
+import '../widgets/vault_grid.dart';
+import '../widgets/vault_album_selector.dart';
+import '../widgets/vault_import_button.dart';
+
+class VaultScreen extends ConsumerStatefulWidget {
+  const VaultScreen({super.key});
+
+  @override
+  ConsumerState<VaultScreen> createState() => _VaultScreenState();
+}
+
+class _VaultScreenState extends ConsumerState<VaultScreen> {
+  bool _isAlbumSelectorOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final vaultState = ref.watch(vaultProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Vault'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              showSearch(
+                context: context,
+                delegate: _VaultSearchDelegate(ref),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.read(vaultProvider.notifier).selectAlbum(null),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          VaultAlbumSelector(
+            albums: vaultState.albums,
+            currentAlbum: vaultState.currentAlbum,
+            isOpen: _isAlbumSelectorOpen,
+            onToggle: () =>
+                setState(() => _isAlbumSelectorOpen = !_isAlbumSelectorOpen),
+            onAlbumSelected: (album) {
+              ref.read(vaultProvider.notifier).selectAlbum(album);
+              setState(() => _isAlbumSelectorOpen = false);
+            },
+            onShowAll: () {
+              ref.read(vaultProvider.notifier).selectAlbum(null);
+              setState(() => _isAlbumSelectorOpen = false);
+            },
+          ),
+          Expanded(
+            child: vaultState.isLoading && vaultState.filteredItems.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : VaultGrid(
+                    items: vaultState.filteredItems,
+                    onTap: (item) async {
+                      final file =
+                          await ref.read(vaultProvider.notifier).decryptForViewing(item);
+                      if (file != null && context.mounted) {
+                        context.push('/viewer', extra: {
+                          'filePath': file.path,
+                          'title': item.name,
+                          'isVaultItem': true,
+                          'vaultItemId': item.id,
+                        });
+                      }
+                    },
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: const VaultImportButton(),
+    );
+  }
+}
+
+class _VaultSearchDelegate extends SearchDelegate<String> {
+  final WidgetRef ref;
+  Timer? _debounceTimer;
+
+  _VaultSearchDelegate(this.ref);
+
+  @override
+  String get searchFieldLabel => 'Search vault...';
+
+  @override
+  TextStyle? get searchFieldStyle => const TextStyle(color: Colors.white);
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.clear),
+          onPressed: () => query = '',
+        ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, ''),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    _debounceTimer?.cancel();
+    ref.read(vaultProvider.notifier).search(query);
+    return const SizedBox.shrink();
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      ref.read(vaultProvider.notifier).search(query);
+    });
+    final vaultState = ref.watch(vaultProvider);
+
+    if (vaultState.filteredItems.isEmpty) {
+      return const Center(
+        child: Text(
+          'No results',
+          style: TextStyle(color: Colors.white54),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: vaultState.filteredItems.length,
+      itemBuilder: (context, index) {
+        final item = vaultState.filteredItems[index];
+        return ListTile(
+          leading: const Icon(Icons.lock, color: Colors.white54),
+          title: Text(item.name, style: const TextStyle(color: Colors.white)),
+          subtitle: Text(
+            item.album,
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+          ),
+          onTap: () => close(context, item.name),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+}
