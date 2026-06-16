@@ -14,15 +14,15 @@ class GallerioNavBar extends StatelessWidget {
   });
 
   static const _icons = [
+    Icons.folder_outlined,
     Icons.photo_library_outlined,
-    Icons.photo_library,
     Icons.search,
     Icons.swap_horiz,
     Icons.settings_outlined,
   ];
 
   static const _activeIcons = [
-    Icons.photo_library,
+    Icons.folder,
     Icons.photo_library,
     Icons.search,
     Icons.swap_horiz,
@@ -34,34 +34,49 @@ class GallerioNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final prev = previousIndex ?? currentIndex;
 
-    return Container(
-      height: 72,
-      color: const Color(0xFF1A1A1A),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: List.generate(5, (index) {
-            final isSelected = index == currentIndex;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A).withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: List.generate(5, (index) {
+                final isSelected = index == currentIndex;
 
-            return Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onTap(index);
-                },
-                behavior: HitTestBehavior.opaque,
-                child: _NavBarItem(
-                  index: index,
-                  isSelected: isSelected,
-                  icon: isSelected ? _activeIcons[index] : _icons[index],
-                  label: _labels[index],
-                  activeColor: colorScheme.primary,
-                ),
-              ),
-            );
-          }),
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onTap(index);
+                    },
+                    behavior: HitTestBehavior.opaque,
+                    child: _NavBarItem(
+                      index: index,
+                      isSelected: isSelected,
+                      icon: isSelected ? _activeIcons[index] : _icons[index],
+                      label: _labels[index],
+                      activeColor: colorScheme.primary,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
         ),
       ),
     );
@@ -138,11 +153,11 @@ class _NavBarItemState extends State<_NavBarItem>
             size: 24,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 200),
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 10,
             color: widget.isSelected ? widget.activeColor : Colors.white54,
             fontWeight:
                 widget.isSelected ? FontWeight.w600 : FontWeight.normal,

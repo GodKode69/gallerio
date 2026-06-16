@@ -75,32 +75,41 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: PageView.builder(
-        controller: _pageController,
-        onPageChanged: (index) {
-          if (index != _currentIndex) {
-            setState(() {
-              _previousIndex = _currentIndex;
-              _currentIndex = index;
-            });
-            context.go(_tabs[index]);
-          }
-        },
-        itemCount: _screens.length,
-        itemBuilder: (context, index) => _screens[index],
-      ),
-      bottomNavigationBar: GallerioNavBar(
-        currentIndex: _currentIndex,
-        previousIndex: _previousIndex,
-        onTap: (index) {
-          if (index == _currentIndex) {
-            if (index == 2) {
-              searchFocusTrigger.value++;
-            }
-            return;
-          }
-          _switchTab(index);
-        },
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              if (index != _currentIndex) {
+                setState(() {
+                  _previousIndex = _currentIndex;
+                  _currentIndex = index;
+                });
+                context.go(_tabs[index]);
+              }
+            },
+            itemCount: _screens.length,
+            itemBuilder: (context, index) => _screens[index],
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: GallerioNavBar(
+              currentIndex: _currentIndex,
+              previousIndex: _previousIndex,
+              onTap: (index) {
+                if (index == _currentIndex) {
+                  if (index == 2) {
+                    searchFocusTrigger.value++;
+                  }
+                  return;
+                }
+                _switchTab(index);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
