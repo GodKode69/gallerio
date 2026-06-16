@@ -40,7 +40,7 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   late AnimationController _fadeController;
 
-  static const _channel = MethodChannel('com.example.gallerio/open_file');
+  static const _channel = MethodChannel('com.arqora.gallerio/open_file');
 
   @override
   void initState() {

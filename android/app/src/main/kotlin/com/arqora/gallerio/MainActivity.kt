@@ -1,4 +1,4 @@
-package com.example.gallerio
+package com.arqora.gallerio
 
 import android.app.WallpaperManager
 import android.content.Intent
@@ -11,7 +11,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterFragmentActivity() {
-    private val CHANNEL = "com.example.gallerio/open_file"
+    private val CHANNEL = "com.arqora.gallerio/open_file"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
