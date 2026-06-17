@@ -9,7 +9,6 @@ import 'staggered_animation.dart';
 
 class MonthlyGallery extends StatefulWidget {
   final List<AssetEntity> assets;
-  final VoidCallback? onLoadMore;
   final int columns;
   final Set<String> selectedAssetIds;
   final bool isSelectionMode;
@@ -23,7 +22,6 @@ class MonthlyGallery extends StatefulWidget {
   const MonthlyGallery({
     super.key,
     required this.assets,
-    this.onLoadMore,
     this.columns = 5,
     this.selectedAssetIds = const {},
     this.isSelectionMode = false,
@@ -41,18 +39,17 @@ class MonthlyGallery extends StatefulWidget {
 
 class _MonthlyGalleryState extends State<MonthlyGallery> {
   late ScrollController _scrollController;
-  bool _isLoadMoreRequested = false;
   List<_ListItem>? _cachedItems;
   List<AssetEntity>? _lastAssets;
   bool _isDragging = false;
   final Set<String> _dragSelectedIds = {};
   String? _lastDraggedAssetId;
+  final Set<String> _collapsedMonths = {};
 
   @override
   void initState() {
     super.initState();
     _scrollController = widget.externalScrollController ?? ScrollController();
-    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -60,42 +57,17 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
     super.didUpdateWidget(oldWidget);
 
     if (!identical(oldWidget.assets, widget.assets)) {
-      _isLoadMoreRequested = false;
       _cachedItems = null;
       _lastAssets = null;
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _maybeLoadMore();
-      });
     }
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
     if (widget.externalScrollController == null) {
       _scrollController.dispose();
     }
     super.dispose();
-  }
-
-  void _onScroll() {
-    _maybeLoadMore();
-  }
-
-  void _maybeLoadMore() {
-    if (widget.onLoadMore == null) return;
-    if (_isLoadMoreRequested) return;
-    if (!_scrollController.hasClients) return;
-
-    final position = _scrollController.position;
-    if (position.maxScrollExtent <= 0) return;
-
-    final nearBottom = position.pixels >= position.maxScrollExtent - 300;
-    if (!nearBottom) return;
-
-    _isLoadMoreRequested = true;
-    widget.onLoadMore?.call();
   }
 
   String? _getAssetIdAtPosition(Offset globalPosition, BuildContext context) {
@@ -104,7 +76,8 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
     final localPosition = renderBox.globalToLocal(globalPosition);
     final screenWidth = MediaQuery.of(context).size.width;
-    final cellSize = screenWidth / widget.columns;
+    final spacing = 2.0;
+    final cellSize = (screenWidth - spacing * (widget.columns + 1)) / widget.columns;
 
     final scrollOffset = _scrollController.hasClients
         ? _scrollController.offset
@@ -117,20 +90,25 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
     for (final item in items) {
       if (item is _HeaderItem) {
-        currentY += 40;
+        currentY += item.collapsed ? 52 : 52;
+        continue;
+      }
+
+      if (item is _CollapsedMonthItem) {
+        currentY += 0;
         continue;
       }
 
       final row = item as _RowItem;
 
       if (adjustedY >= currentY && adjustedY < currentY + cellSize) {
-        final colIndex = (localPosition.dx / cellSize).floor();
-        if (colIndex < row.assets.length) {
+        final colIndex = ((localPosition.dx - spacing) / (cellSize + spacing)).floor();
+        if (colIndex >= 0 && colIndex < row.assets.length) {
           return row.assets[colIndex].id;
         }
       }
 
-      currentY += cellSize.toInt();
+      currentY += (cellSize + spacing).toInt();
     }
 
     return null;
@@ -207,6 +185,18 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
     _lastDraggedAssetId = null;
   }
 
+  void _toggleMonthCollapse(String monthKey) {
+    setState(() {
+      if (_collapsedMonths.contains(monthKey)) {
+        _collapsedMonths.remove(monthKey);
+      } else {
+        _collapsedMonths.add(monthKey);
+      }
+      _cachedItems = null;
+      _lastAssets = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.assets.isEmpty) {
@@ -230,34 +220,53 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
           final item = items[index];
 
           if (item is _HeaderItem) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
-              child: Row(
-                children: [
-                  Text(
-                    item.month,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+            return GestureDetector(
+              onTap: () => _toggleMonthCollapse(item.monthKey),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 20, 14, 12),
+                child: Row(
+                  children: [
+                    Text(
+                      item.month,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Container(
-                      height: 0.5,
-                      color: Colors.white24,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Container(
+                        height: 0.5,
+                        color: Colors.white24,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: item.collapsed ? -0.25 : 0.25,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        Icons.chevron_right,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
+          if (item is _CollapsedMonthItem) {
+            return const SizedBox.shrink();
+          }
+
           final row = item as _RowItem;
+          final spacing = 2.0;
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.only(left: 2, right: 2, bottom: 2),
             child: Row(
+              spacing: spacing,
               children: [
                 for (int i = 0; i < widget.columns; i++)
                   Expanded(
@@ -311,12 +320,9 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
       return _cachedItems!;
     }
 
-    final sortedAssets = List<AssetEntity>.from(assets)
-      ..sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
-
     final grouped = <DateTime, List<AssetEntity>>{};
 
-    for (final asset in sortedAssets) {
+    for (final asset in assets) {
       final date = asset.createDateTime;
       final monthKey = DateTime(date.year, date.month);
       grouped.putIfAbsent(monthKey, () => []).add(asset);
@@ -329,8 +335,19 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
     for (final month in sortedMonths) {
       final monthAssets = grouped[month]!;
+      final monthKeyStr = DateFormat('yyyy-MM').format(month);
+      final isCollapsed = _collapsedMonths.contains(monthKeyStr);
 
-      items.add(_HeaderItem(DateFormat('MMM yyyy').format(month)));
+      items.add(_HeaderItem(
+        month: DateFormat('MMM yyyy').format(month),
+        monthKey: monthKeyStr,
+        collapsed: isCollapsed,
+      ));
+
+      if (isCollapsed) {
+        items.add(_CollapsedMonthItem(monthKey: monthKeyStr));
+        continue;
+      }
 
       for (int i = 0; i < monthAssets.length; i += widget.columns) {
         final rowAssets = monthAssets.sublist(
@@ -345,7 +362,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
     _cachedItems = items;
     _lastAssets = assets;
-    return items;
+    return _cachedItems!;
   }
 }
 
@@ -353,7 +370,14 @@ sealed class _ListItem {}
 
 class _HeaderItem extends _ListItem {
   final String month;
-  _HeaderItem(this.month);
+  final String monthKey;
+  final bool collapsed;
+  _HeaderItem({required this.month, required this.monthKey, this.collapsed = false});
+}
+
+class _CollapsedMonthItem extends _ListItem {
+  final String monthKey;
+  _CollapsedMonthItem({required this.monthKey});
 }
 
 class _RowItem extends _ListItem {

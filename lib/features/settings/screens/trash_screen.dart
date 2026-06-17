@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/top_message.dart';
 import '../../../core/trash/trash_service.dart';
 import '../../../core/database/database.dart';
+import '../../gallery/providers/gallery_provider.dart';
 
 class TrashScreen extends StatefulWidget {
   const TrashScreen({super.key});
@@ -129,6 +131,9 @@ class TrashScreenState extends State<TrashScreen> {
     if (mounted) {
       showTopMessage(context, success ? 'Restored' : 'Failed to restore');
       _loadTrash();
+      ProviderScope.containerOf(context)
+          .read(galleryProvider.notifier)
+          .refresh();
     }
   }
 

@@ -8,7 +8,6 @@ import '../widgets/monthly_gallery.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/sort_sheet.dart';
 import '../widgets/multi_select_bar.dart';
-import '../widgets/timeline_scrubber.dart';
 
 class GalleryScreen extends ConsumerStatefulWidget {
   const GalleryScreen({super.key});
@@ -47,88 +46,78 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       galleryProvider.select((s) => s.favoriteIds),
     );
 
-    final content = Stack(
-      children: [
-        Listener(
-          onPointerDown: (event) {
-            _pointers[event.pointer] = event.position;
-            if (_pointers.length == 2) {
-              _isPinching = true;
-              ref.read(isPinchingProvider.notifier).state = true;
-              final pts = _pointers.values.toList();
-              _scaleStart = (pts[0] - pts[1]).distance;
-            }
-          },
-          onPointerMove: (event) {
-            _pointers[event.pointer] = event.position;
-            if (_pointers.length == 2) {
-              final pts = _pointers.values.toList();
-              final currentDist = (pts[0] - pts[1]).distance;
-              if (_scaleStart > 0) {
-                final scale = currentDist / _scaleStart;
-                final notifier = ref.read(galleryProvider.notifier);
-                final current = ref.read(galleryProvider).gridColumns;
+    final content = Listener(
+      onPointerDown: (event) {
+        _pointers[event.pointer] = event.position;
+        if (_pointers.length == 2) {
+          _isPinching = true;
+          ref.read(isPinchingProvider.notifier).state = true;
+          final pts = _pointers.values.toList();
+          _scaleStart = (pts[0] - pts[1]).distance;
+        }
+      },
+      onPointerMove: (event) {
+        _pointers[event.pointer] = event.position;
+        if (_pointers.length == 2) {
+          final pts = _pointers.values.toList();
+          final currentDist = (pts[0] - pts[1]).distance;
+          if (_scaleStart > 0) {
+            final scale = currentDist / _scaleStart;
+            final notifier = ref.read(galleryProvider.notifier);
+            final current = ref.read(galleryProvider).gridColumns;
 
-                if (scale > 1.225) {
-                  final newColumns = current - 1;
-                  if (newColumns >= 3 && newColumns != current) {
-                    HapticFeedback.lightImpact();
-                    notifier.setGridColumns(newColumns);
-                    _scaleStart = currentDist;
-                  }
-                } else if (scale < 0.775) {
-                  final newColumns = current + 1;
-                  if (newColumns <= 6 && newColumns != current) {
-                    HapticFeedback.lightImpact();
-                    notifier.setGridColumns(newColumns);
-                    _scaleStart = currentDist;
-                  }
-                }
+            if (scale > 1.225) {
+              final newColumns = current - 1;
+              if (newColumns >= 3 && newColumns != current) {
+                HapticFeedback.lightImpact();
+                notifier.setGridColumns(newColumns);
+                _scaleStart = currentDist;
+              }
+            } else if (scale < 0.775) {
+              final newColumns = current + 1;
+              if (newColumns <= 6 && newColumns != current) {
+                HapticFeedback.lightImpact();
+                notifier.setGridColumns(newColumns);
+                _scaleStart = currentDist;
               }
             }
-          },
-          onPointerUp: (event) {
-            _pointers.remove(event.pointer);
-            if (_pointers.length < 2) {
-              _scaleStart = 0;
-              _isPinching = false;
-              ref.read(isPinchingProvider.notifier).state = false;
-            }
-          },
-          onPointerCancel: (event) {
-            _pointers.remove(event.pointer);
-            if (_pointers.length < 2) {
-              _scaleStart = 0;
-              _isPinching = false;
-              ref.read(isPinchingProvider.notifier).state = false;
-            }
-          },
-          child: MonthlyGallery(
-            assets: displayAssets,
-            columns: gridColumns,
-            onLoadMore: () =>
-                ref.read(galleryProvider.notifier).loadMore(),
-            selectedAssetIds: ref.read(galleryProvider).selectedAssetIds,
-            isSelectionMode: isSelectionMode,
-            favoriteIds: ref.read(galleryProvider).favoriteIds,
-            onToggleSelection: (id) =>
-                ref.read(galleryProvider.notifier).toggleSelection(id),
-            onEnterSelectionMode: () =>
-                ref.read(galleryProvider.notifier).enterSelectionMode(),
-            externalScrollController: _scrollController,
-          ),
+          }
+        }
+      },
+      onPointerUp: (event) {
+        _pointers.remove(event.pointer);
+        if (_pointers.length < 2) {
+          _scaleStart = 0;
+          _isPinching = false;
+          ref.read(isPinchingProvider.notifier).state = false;
+        }
+      },
+      onPointerCancel: (event) {
+        _pointers.remove(event.pointer);
+        if (_pointers.length < 2) {
+          _scaleStart = 0;
+          _isPinching = false;
+          ref.read(isPinchingProvider.notifier).state = false;
+        }
+      },
+      child: Scrollbar(
+        controller: _scrollController,
+        thickness: 3,
+        radius: const Radius.circular(4),
+        thumbVisibility: true,
+        child: MonthlyGallery(
+          assets: displayAssets,
+          columns: gridColumns,
+          selectedAssetIds: ref.read(galleryProvider).selectedAssetIds,
+          isSelectionMode: isSelectionMode,
+          favoriteIds: ref.read(galleryProvider).favoriteIds,
+          onToggleSelection: (id) =>
+              ref.read(galleryProvider.notifier).toggleSelection(id),
+          onEnterSelectionMode: () =>
+              ref.read(galleryProvider.notifier).enterSelectionMode(),
+          externalScrollController: _scrollController,
         ),
-        if (!isSelectionMode)
-          Positioned(
-            right: 4,
-            top: 0,
-            bottom: 0,
-            child: TimelineScrubber(
-              assets: assets,
-              scrollController: _scrollController,
-            ),
-          ),
-      ],
+      ),
     );
 
     if (isPinching) return content;

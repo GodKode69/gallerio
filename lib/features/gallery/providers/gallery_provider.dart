@@ -17,8 +17,6 @@ class GalleryState {
   final bool isLoading;
   final bool hasPermission;
   final String? error;
-  final int page;
-  final bool hasMore;
   final int gridColumns;
 
   final Set<String> selectedAssetIds;
@@ -38,8 +36,6 @@ class GalleryState {
     this.isLoading = false,
     this.hasPermission = false,
     this.error,
-    this.page = 0,
-    this.hasMore = true,
     this.gridColumns = 4,
     this.selectedAssetIds = const {},
     this.isSelectionMode = false,
@@ -57,8 +53,6 @@ class GalleryState {
     bool? isLoading,
     bool? hasPermission,
     String? error,
-    int? page,
-    bool? hasMore,
     int? gridColumns,
     Set<String>? selectedAssetIds,
     bool? isSelectionMode,
@@ -75,8 +69,6 @@ class GalleryState {
       isLoading: isLoading ?? this.isLoading,
       hasPermission: hasPermission ?? this.hasPermission,
       error: error,
-      page: page ?? this.page,
-      hasMore: hasMore ?? this.hasMore,
       gridColumns: gridColumns ?? this.gridColumns,
       selectedAssetIds: selectedAssetIds ?? this.selectedAssetIds,
       isSelectionMode: isSelectionMode ?? this.isSelectionMode,
@@ -99,7 +91,6 @@ class GalleryState {
 }
 
 class GalleryNotifier extends StateNotifier<GalleryState> {
-  static const int _pageSize = 80;
   static const int _maxRecentlyViewed = 50;
 
   GalleryNotifier() : super(const GalleryState()) {
@@ -112,12 +103,12 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     await _requestStoragePermission();
 
     if (state.hasPermission) {
+      await _loadSortOrder();
       await _loadAlbums();
       await _loadRecentAssets();
       await _loadRecentlyViewed();
       await _loadGridColumns();
       await _loadFavorites();
-      await _loadSortOrder();
 
       TrashService().purgeExpired();
     }
@@ -170,16 +161,21 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _loadAssets(AssetPathEntity album, {bool reset = false}) async {
     try {
-      final page = reset ? 0 : state.page + 1;
-      final assets = await album.getAssetListPaged(page: page, size: _pageSize);
-      final mergedAssets = reset ? assets : [...state.assets, ...assets];
-      final sortedAssets = _sortAssets(mergedAssets.toList());
+      final count = await album.assetCountAsync;
+      if (count == 0) {
+        state = state.copyWith(
+          assets: [],
+          currentAlbum: album,
+          isLoading: false,
+        );
+        return;
+      }
+      final allAssets = await album.getAssetListRange(start: 0, end: count);
+      final sortedAssets = _sortAssets(allAssets.toList());
 
       state = state.copyWith(
         assets: sortedAssets,
         currentAlbum: album,
-        page: page,
-        hasMore: assets.length == _pageSize,
         isLoading: false,
       );
     } catch (e) {
@@ -213,11 +209,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     await _loadAssets(album, reset: true);
   }
 
-  Future<void> loadMore() async {
-    if (state.isLoading || !state.hasMore) return;
-    state = state.copyWith(isLoading: true);
-    await _loadAssets(state.currentAlbum!, reset: false);
-  }
+  Future<void> loadMore() async {}
 
   Future<void> refresh() async {
     if (state.currentAlbum == null) return;

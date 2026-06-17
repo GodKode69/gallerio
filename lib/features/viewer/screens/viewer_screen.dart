@@ -631,6 +631,9 @@ class _ViewerScreenState extends State<ViewerScreen>
         if (_currentAsset != null) {
           final success = await TrashService().deleteWithTrash(_currentAsset!);
           if (success && mounted) {
+            ProviderScope.containerOf(context)
+                .read(galleryProvider.notifier)
+                .refresh();
             if (_hasSliding) {
               final newIds = List<String>.from(widget.assetIds!)
                 ..removeAt(_currentIndex);
