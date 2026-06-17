@@ -159,7 +159,10 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
     final authState = ref.watch(authStateProvider);
 
     ref.listen<AuthState>(authStateProvider, (prev, next) {
-      if (next.isUnlocked && next.isPinSet && !_isChangeMode) {
+      if (next.isUnlocked &&
+          next.isPinSet &&
+          (prev?.isLoading ?? false) &&
+          !next.isLoading) {
         if (context.canPop()) {
           context.pop();
         } else {
