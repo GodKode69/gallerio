@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,13 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/database/database.dart';
+import '../../../shared/utils/vault_utils.dart';
 import '../../auth/providers/auth_provider.dart';
-
-String _generateVaultName() {
-  final random = Random.secure();
-  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-  return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-}
 
 class VaultState {
   final List<VaultItem> items;
@@ -115,7 +109,7 @@ class VaultNotifier extends StateNotifier<VaultState> {
       }
 
       for (final filePath in filePaths) {
-        final vaultName = _generateVaultName();
+        final vaultName = generateVaultName();
         final ext = p.extension(filePath);
         final vaultPath = p.join(vaultDir.path, '$vaultName$ext');
 
