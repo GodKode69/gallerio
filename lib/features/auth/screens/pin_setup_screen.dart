@@ -130,7 +130,13 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
           await authNotifier.changePin(_oldPin, _confirmController.text);
           _firstPin = '';
           _oldPin = '';
-          if (mounted) context.pop();
+          if (mounted) {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/gallery');
+            }
+          }
         } else {
           await authNotifier.setupPin(_confirmController.text);
           _firstPin = '';
