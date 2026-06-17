@@ -94,6 +94,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       appBar: AppBar(
         title: Container(
           height: 44,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: AppColors.chipBackground.withValues(alpha: 0.95),
             borderRadius: BorderRadius.circular(22),
@@ -107,6 +108,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
               prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(22),
+                borderSide: BorderSide(
+                  color: AppColors.textSecondary.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
+              ),
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
             onChanged: _performSearch,
