@@ -62,6 +62,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
 
   void _switchTab(int index) {
     if (index == _currentIndex) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _previousIndex = _currentIndex;
       _currentIndex = index;
