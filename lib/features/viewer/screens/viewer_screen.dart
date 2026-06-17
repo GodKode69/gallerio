@@ -8,6 +8,8 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
+import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../core/trash/trash_service.dart';
 
 class ViewerScreen extends StatefulWidget {
@@ -409,28 +411,9 @@ class _ViewerScreenState extends State<ViewerScreen>
   }
 
   Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
-        title: Row(
-          children: [
-            const Text('Delete?'),
-            const Spacer(),
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: AppColors.favoriteRed)),
-            ),
-          ],
-        ),
-      ),
+    final confirmed = await ConfirmDeleteDialog.show(
+      context,
+      title: 'Delete?',
     );
 
     if (confirmed == true && mounted) {
@@ -490,16 +473,7 @@ class _ViewerScreenState extends State<ViewerScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
+                const BottomSheetDragHandle(),
                 const SizedBox(height: 20),
                 const Text(
                   'Details',

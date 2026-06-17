@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
 import '../providers/gallery_provider.dart';
 
 class SortSheet extends ConsumerWidget {
@@ -38,16 +39,7 @@ class SortSheet extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.iconOverlay,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
+          const BottomSheetDragHandle(),
           const SizedBox(height: 20),
           const Text(
             'Sort By',
