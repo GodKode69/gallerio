@@ -158,6 +158,7 @@ class _ViewerScreenState extends State<ViewerScreen>
   }
 
   void _resolveTap() {
+    if (_isScaling || _isPanning) return;
     final count = _tapCount;
     _tapCount = 0;
     if (count == 1) {
@@ -227,6 +228,8 @@ class _ViewerScreenState extends State<ViewerScreen>
     if (_pointers.length == 2) {
       _zoomController.stop();
       _isScaling = true;
+      _tapTimer?.cancel();
+      _tapCount = 0;
       _baseScale = _imageScale;
       final pts = _pointers.values.toList();
       _initialPinchDistance = (pts[0] - pts[1]).distance;

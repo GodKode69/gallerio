@@ -107,11 +107,11 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
         return;
       }
       _oldPin = _pinController.text;
+      _pinController.clear();
       setState(() {
         _step = 1;
         _error = null;
       });
-      _confirmController.clear();
     } else if (!_isChangeMode && _step == 0) {
       _firstPin = _pinController.text;
       _confirmController.clear();
@@ -134,6 +134,13 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
         } else {
           await authNotifier.setupPin(_confirmController.text);
           _firstPin = '';
+          if (mounted) {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/gallery');
+            }
+          }
         }
       } else {
         setState(() => _error = 'PINs do not match');
