@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app/theme.dart';
 import '../providers/gallery_provider.dart';
 
 class SortSheet extends ConsumerWidget {
@@ -8,7 +9,7 @@ class SortSheet extends ConsumerWidget {
   static void show(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1D1D1D),
+      backgroundColor: AppColors.sheetBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -42,7 +43,7 @@ class SortSheet extends ConsumerWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.iconOverlay,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -51,7 +52,7 @@ class SortSheet extends ConsumerWidget {
           const Text(
             'Sort By',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
@@ -93,13 +94,13 @@ class _SortOption extends StatelessWidget {
     return ListTile(
       leading: Icon(
         icon,
-        color: isSelected ? colorScheme.primary : Colors.white54,
+        color: isSelected ? colorScheme.primary : AppColors.textSecondary,
         size: 20,
       ),
       title: Text(
         label,
         style: TextStyle(
-          color: isSelected ? colorScheme.primary : Colors.white,
+          color: isSelected ? colorScheme.primary : AppColors.textPrimary,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),

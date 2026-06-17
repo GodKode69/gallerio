@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,9 +7,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/database/database.dart';
-import '../../../core/encryption/encryption_service.dart';
-import '../../../core/security/security_service.dart';
 import '../../auth/providers/auth_provider.dart';
+
+String _generateVaultName() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+}
 
 class VaultState {
   final List<VaultItem> items;
@@ -53,11 +57,8 @@ class VaultState {
 
 class VaultNotifier extends StateNotifier<VaultState> {
   final GallerioDatabase _db;
-  final EncryptionService _encryption;
-  final SecurityService _security;
 
-  VaultNotifier(this._db, this._encryption, this._security)
-      : super(const VaultState()) {
+  VaultNotifier(this._db) : super(const VaultState()) {
     _init();
   }
 
@@ -102,12 +103,6 @@ class VaultNotifier extends StateNotifier<VaultState> {
   }) async {
     state = state.copyWith(isLoading: true);
     try {
-      var key = await _security.getVaultKey();
-      if (key == null) {
-        key = await _encryption.generateKey();
-        await _security.setVaultKey(key);
-      }
-
       final appDir = await getApplicationDocumentsDirectory();
       final vaultDir = Directory(p.join(appDir.path, 'vault'));
       if (!await vaultDir.exists()) {
@@ -120,20 +115,14 @@ class VaultNotifier extends StateNotifier<VaultState> {
       }
 
       for (final filePath in filePaths) {
-        final encryptedName = _encryption.generateEncryptedName();
-        final encryptedPath = p.join(vaultDir.path, '$encryptedName.enc');
+        final vaultName = _generateVaultName();
+        final ext = p.extension(filePath);
+        final vaultPath = p.join(vaultDir.path, '$vaultName$ext');
 
         final sourceFile = File(filePath);
         if (!await sourceFile.exists()) continue;
 
-        final outputFile = File(encryptedPath);
-        await _encryption.encryptFile(
-          inputFile: sourceFile,
-          key: key,
-          outputFile: outputFile,
-        );
-
-        final nonce = await _encryption.getLastNonce();
+        await sourceFile.copy(vaultPath);
 
         final name = assetInfo['name'] ?? p.basename(filePath);
         final mimeType = assetInfo['mimeType'] ?? '';
@@ -142,19 +131,19 @@ class VaultNotifier extends StateNotifier<VaultState> {
 
         String? thumbnailPath;
         try {
-          final thumbPath = p.join(thumbDir.path, '$encryptedName.thumb');
+          final thumbPath = p.join(thumbDir.path, '$vaultName$ext');
           await sourceFile.copy(thumbPath);
           thumbnailPath = thumbPath;
         } catch (_) {}
 
         await _db.insertVaultItem(VaultItemsCompanion.insert(
           name: name,
-          encryptedPath: encryptedPath,
+          encryptedPath: vaultPath,
           originalName: Value(name),
           mimeType: Value(mimeType),
           size: Value(size),
           album: Value(album),
-          iv: base64Encode(nonce),
+          iv: '',
           thumbnailPath: Value(thumbnailPath),
         ));
       }
@@ -239,21 +228,11 @@ class VaultNotifier extends StateNotifier<VaultState> {
     }
   }
 
-  Future<File?> decryptForViewing(VaultItem item) async {
+  Future<File?> getFileForViewing(VaultItem item) async {
     try {
-      final key = await _security.getVaultKey();
-      if (key == null) return null;
-
-      final encryptedFile = File(item.encryptedPath);
-      if (!await encryptedFile.exists()) return null;
-
-      final tempFile = await _encryption.getTempDecryptFile(item.name);
-      await _encryption.decryptFile(
-        encryptedFile: encryptedFile,
-        key: key,
-        outputFile: tempFile,
-      );
-      return tempFile;
+      final file = File(item.encryptedPath);
+      if (!await file.exists()) return null;
+      return file;
     } catch (e) {
       return null;
     }
@@ -264,13 +243,7 @@ final vaultDatabaseProvider = Provider<GallerioDatabase>((ref) {
   return GallerioDatabase();
 });
 
-final vaultEncryptionProvider = Provider<EncryptionService>((ref) {
-  return EncryptionService();
-});
-
 final vaultProvider = StateNotifierProvider<VaultNotifier, VaultState>((ref) {
   final db = ref.watch(vaultDatabaseProvider);
-  final encryption = ref.watch(vaultEncryptionProvider);
-  final security = ref.watch(securityServiceProvider);
-  return VaultNotifier(db, encryption, security);
+  return VaultNotifier(db);
 });

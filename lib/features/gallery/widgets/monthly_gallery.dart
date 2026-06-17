@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:go_router/go_router.dart';
+import '../../../app/theme.dart';
 import 'gallery_thumbnail.dart';
 import 'staggered_animation.dart';
 
@@ -285,9 +286,12 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
                                   widget.onToggleSelection
                                       ?.call(row.assets[i].id);
                                 } else {
+                                  final flatIndex = widget.assets.indexOf(row.assets[i]);
                                   context.push('/viewer', extra: {
                                     'assetId': row.assets[i].id,
                                     'title': row.assets[i].title ?? 'Photo',
+                                    'assetIds': widget.assets.map((a) => a.id).toList(),
+                                    'initialIndex': flatIndex >= 0 ? flatIndex : 0,
                                   });
                                 }
                               },

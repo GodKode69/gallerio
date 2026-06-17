@@ -5,6 +5,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/shell_screen.dart';
+import '../../../app/theme.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/staggered_animation.dart';
@@ -69,7 +70,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         body: const Center(
           child: Text(
             'No gallery permission',
-            style: TextStyle(color: Colors.white54),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
       );
@@ -85,7 +86,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         actions: [
           if (favoriteIds.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.favorite, color: Colors.redAccent),
+              icon: const Icon(Icons.favorite, color: AppColors.favoriteRed),
               onPressed: () {
                 ref.read(galleryProvider.notifier).setShowFavoritesOnly(true);
                 context.go('/search');
@@ -100,7 +101,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
               : const Center(
                   child: Text(
                     'No albums found',
-                    style: TextStyle(color: Colors.white54),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
           : GridView.builder(
@@ -260,7 +261,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
               ? const Center(
                   child: Text(
                     'No photos in this album',
-                    style: TextStyle(color: Colors.white54),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
               : Listener(
@@ -347,6 +348,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                               context.push('/viewer', extra: {
                                 'assetId': asset.id,
                                 'title': asset.title ?? 'Photo',
+                                'assetIds': _albumAssets.map((a) => a.id).toList(),
+                                'initialIndex': index,
                               });
                             }
                           },
@@ -411,7 +414,7 @@ class _AlbumCardState extends State<AlbumCard> {
           Text(
             widget.album.name,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),

@@ -8,7 +8,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class SecurityService {
   static const _pinHashKey = 'gallerio_pin_hash';
   static const _pinSaltKey = 'gallerio_pin_salt';
-  static const _vaultKeyKey = 'gallerio_vault_key';
   static const _vaultCodeHashKey = 'gallerio_vault_code_hash';
   static const _vaultCodeSaltKey = 'gallerio_vault_code_salt';
   static const _failedAttemptsKey = 'gallerio_failed_attempts';
@@ -83,20 +82,6 @@ class SecurityService {
     await _storage.delete(key: _pinSaltKey);
     await _storage.delete(key: _failedAttemptsKey);
     await _storage.delete(key: _lockoutUntilKey);
-  }
-
-  Future<SecretKey?> getVaultKey() async {
-    final keyBase64 = await _storage.read(key: _vaultKeyKey);
-    if (keyBase64 == null) return null;
-    return SecretKey(base64Decode(keyBase64));
-  }
-
-  Future<void> setVaultKey(SecretKey key) async {
-    final keyData = await key.extract();
-    await _storage.write(
-      key: _vaultKeyKey,
-      value: base64Encode(keyData.bytes),
-    );
   }
 
   Future<bool> hasVaultCode() async {

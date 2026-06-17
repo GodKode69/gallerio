@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
+import '../../../app/theme.dart';
 
 class GalleryThumbnail extends StatelessWidget {
   final AssetEntity asset;
@@ -187,7 +188,7 @@ class _FavoriteBadge extends StatelessWidget {
       ),
       child: const Icon(
         Icons.favorite,
-        color: Colors.redAccent,
+        color: AppColors.favoriteRed,
         size: 14,
       ),
     );
@@ -209,7 +210,7 @@ class _SelectionBadge extends StatelessWidget {
             ? Theme.of(context).colorScheme.primary
             : Colors.black45,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
+        border: Border.all(color: AppColors.textPrimary, width: 1.5),
       ),
       child: isSelected
           ? const Icon(Icons.check, color: Colors.white, size: 16)

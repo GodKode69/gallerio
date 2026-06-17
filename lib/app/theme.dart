@@ -2,6 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 
+class AppColors {
+  AppColors._();
+
+  static const scaffoldBackground = Color(0xFF0D0D0D);
+  static const sheetBackground = Color(0xFF1D1D1D);
+  static const navBarBackground = Color(0xFF1A1A1A);
+  static const chipBackground = Color(0xFF2A2A2A);
+
+  static const favoriteRed = Colors.redAccent;
+  static const textPrimary = Colors.white;
+  static const textSecondary = Colors.white54;
+  static const textMuted = Colors.white70;
+  static const iconOverlay = Colors.white24;
+}
+
 class GallerioTheme {
   static const _seedColor = Color(0xFF6750A4);
 
@@ -15,10 +30,10 @@ class GallerioTheme {
       colorScheme: colorScheme,
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0D0D0D),
+      scaffoldBackgroundColor: AppColors.scaffoldBackground,
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0D0D0D),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.scaffoldBackground,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle(
@@ -26,18 +41,18 @@ class GallerioTheme {
           statusBarIconBrightness: Brightness.light,
         ),
         titleTextStyle: TextStyle(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.textPrimary,
         ),
       ),
       searchViewTheme: SearchViewThemeData(
-        backgroundColor: const Color(0xFF1D1D1D),
+        backgroundColor: AppColors.sheetBackground,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -45,7 +60,7 @@ class GallerioTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF1D1D1D),
+        fillColor: AppColors.sheetBackground,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -58,35 +73,35 @@ class GallerioTheme {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: const Color(0xFF2A2A2A),
+        backgroundColor: AppColors.chipBackground,
         selectedColor: colorScheme.primary,
-        labelStyle: const TextStyle(color: Colors.white),
+        labelStyle: const TextStyle(color: AppColors.textPrimary),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: const Color(0xFF1D1D1D),
+        backgroundColor: AppColors.sheetBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: const Color(0xFF2A2A2A),
-        contentTextStyle: const TextStyle(color: Colors.white),
+        backgroundColor: AppColors.chipBackground,
+        contentTextStyle: const TextStyle(color: AppColors.textPrimary),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         behavior: SnackBarBehavior.floating,
       ),
       navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: Color(0xFF1A1A1A),
+        backgroundColor: AppColors.navBarBackground,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         indicatorColor: Colors.transparent,
       ),
       bottomAppBarTheme: const BottomAppBarThemeData(
-        color: Color(0xFF1A1A1A),
+        color: AppColors.navBarBackground,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),

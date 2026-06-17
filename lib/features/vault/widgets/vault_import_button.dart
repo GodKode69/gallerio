@@ -3,7 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
-
+import '../../../app/theme.dart';
 import '../providers/vault_provider.dart';
 
 class VaultImportButton extends ConsumerWidget {
@@ -21,7 +21,7 @@ class VaultImportButton extends ConsumerWidget {
   void _showImportOptions(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1D1D1D),
+      backgroundColor: AppColors.sheetBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -34,13 +34,13 @@ class VaultImportButton extends ConsumerWidget {
               height: 4,
               margin: const EdgeInsets.only(top: 12),
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.iconOverlay,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             const SizedBox(height: 20),
             ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.white70),
+              leading: const Icon(Icons.photo_library, color: AppColors.textMuted),
               title: const Text('Pick Files',
                   style: TextStyle(color: Colors.white)),
               subtitle: Text(
@@ -54,7 +54,7 @@ class VaultImportButton extends ConsumerWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.folder, color: Colors.white70),
+              leading: const Icon(Icons.folder, color: AppColors.textMuted),
               title: const Text('Pick Folder',
                   style: TextStyle(color: Colors.white)),
               subtitle: Text(

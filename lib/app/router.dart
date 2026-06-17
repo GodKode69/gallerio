@@ -72,6 +72,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             title: extra?['title'] ?? '',
             isVaultItem: extra?['isVaultItem'] ?? false,
             vaultItemId: extra?['vaultItemId'],
+            assetIds: extra?['assetIds'] != null
+                ? List<String>.from(extra!['assetIds'])
+                : null,
+            initialIndex: extra?['initialIndex'] ?? 0,
           );
         },
       ),

@@ -2,16 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../app/theme.dart';
 import '../providers/gallery_provider.dart';
 import '../../../core/database/database.dart';
-import '../../../core/encryption/encryption_service.dart';
-import '../../../core/security/security_service.dart';
 import '../../../core/trash/trash_service.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
-import 'dart:convert';
+import 'dart:math';
 
 class MultiSelectBar extends ConsumerWidget {
   const MultiSelectBar({super.key});
@@ -35,7 +34,7 @@ class MultiSelectBar extends ConsumerWidget {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: AppColors.navBarBackground,
         border: Border(
           top: BorderSide(
             color: colorScheme.primary.withValues(alpha: 0.3),
@@ -110,10 +109,10 @@ class MultiSelectBar extends ConsumerWidget {
   Future<void> _deleteSelected(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
         insetPadding: const EdgeInsets.symmetric(horizontal: 40),
         title: Row(
           children: [
@@ -146,15 +145,6 @@ class MultiSelectBar extends ConsumerWidget {
     final assets = ref.read(galleryProvider.notifier).selectedAssets;
 
     try {
-      final security = SecurityService();
-      final encryption = EncryptionService();
-
-      var key = await security.getVaultKey();
-      if (key == null) {
-        key = await encryption.generateKey();
-        await security.setVaultKey(key);
-      }
-
       final appDir = await getApplicationDocumentsDirectory();
       final vaultDir = Directory(p.join(appDir.path, 'vault'));
       if (!await vaultDir.exists()) {
@@ -168,27 +158,24 @@ class MultiSelectBar extends ConsumerWidget {
         final file = await asset.file;
         if (file == null) continue;
 
-        final encryptedName = encryption.generateEncryptedName();
-        final encryptedPath = p.join(vaultDir.path, '$encryptedName.enc');
+        final random = Random.secure();
+        final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+        final vaultName = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+        final ext = p.extension(file.path);
+        final vaultPath = p.join(vaultDir.path, '$vaultName$ext');
 
-        final outputFile = File(encryptedPath);
-        await encryption.encryptFile(
-          inputFile: file,
-          key: key,
-          outputFile: outputFile,
-        );
+        await file.copy(vaultPath);
 
-        final nonce = await encryption.getLastNonce();
         final name = asset.title ?? 'Photo';
 
         await db.insertVaultItem(VaultItemsCompanion.insert(
           name: name,
-          encryptedPath: encryptedPath,
+          encryptedPath: vaultPath,
           originalName: drift.Value(name),
           mimeType: drift.Value(asset.type == AssetType.video ? 'video' : 'image'),
           size: const drift.Value(0),
           album: const drift.Value('Imported'),
-          iv: base64Encode(nonce),
+          iv: '',
         ));
         count++;
       }

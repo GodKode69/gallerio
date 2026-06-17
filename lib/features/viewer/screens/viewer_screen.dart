@@ -7,6 +7,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import '../../../app/theme.dart';
 import '../../../core/trash/trash_service.dart';
 
 class ViewerScreen extends StatefulWidget {
@@ -15,6 +16,8 @@ class ViewerScreen extends StatefulWidget {
   final String title;
   final bool isVaultItem;
   final int? vaultItemId;
+  final List<String>? assetIds;
+  final int initialIndex;
 
   const ViewerScreen({
     super.key,
@@ -23,6 +26,8 @@ class ViewerScreen extends StatefulWidget {
     required this.title,
     this.isVaultItem = false,
     this.vaultItemId,
+    this.assetIds,
+    this.initialIndex = 0,
   });
 
   @override
@@ -31,82 +36,98 @@ class ViewerScreen extends StatefulWidget {
 
 class _ViewerScreenState extends State<ViewerScreen>
     with SingleTickerProviderStateMixin {
-  AssetEntity? _asset;
-  bool _isVideo = false;
+  late PageController _pageController;
+  late int _currentIndex;
   bool _showControls = true;
-  bool _isInitialized = false;
-  String? _filePath;
-  bool _fullQualityLoaded = false;
+  String _currentTitle = '';
+  AssetEntity? _currentAsset;
 
   late AnimationController _fadeController;
 
   static const _channel = MethodChannel('com.arqora.gallerio/open_file');
 
+  bool get _hasSliding => widget.assetIds != null && widget.assetIds!.length > 1;
+
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+    _currentTitle = widget.title;
+    _pageController = PageController(initialPage: widget.initialIndex);
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _initMedia();
+    _loadCurrentAsset();
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _fadeController.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    if (widget.isVaultItem && _filePath != null) {
-      _cleanupTempFile();
-    }
     super.dispose();
   }
 
-  void _cleanupTempFile() {
-    try {
-      final file = File(_filePath!);
-      if (file.existsSync() && file.path.contains('/dec_')) {
-        file.deleteSync();
+  Future<void> _loadCurrentAsset() async {
+    if (widget.isVaultItem) {
+      _fadeController.forward();
+      return;
+    }
+
+    if (widget.assetIds != null && _currentIndex < widget.assetIds!.length) {
+      final asset = await AssetEntity.fromId(widget.assetIds![_currentIndex]);
+      if (asset != null && mounted) {
+        setState(() => _currentAsset = asset);
       }
-    } catch (_) {}
-  }
-
-  Future<void> _initMedia() async {
-    if (widget.isVaultItem && widget.filePath != null) {
-      final file = File(widget.filePath!);
-      if (!await file.exists()) return;
-
-      _filePath = widget.filePath;
-      final ext = file.path.split('.').last.toLowerCase();
-      _isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
     } else if (widget.assetId != null) {
       final asset = await AssetEntity.fromId(widget.assetId!);
-      if (asset == null) return;
-      _asset = asset;
-      _isVideo = asset.type == AssetType.video;
-
-      if (_isVideo) {
-        final file = await asset.file;
-        _filePath = file?.path;
+      if (asset != null && mounted) {
+        setState(() => _currentAsset = asset);
       }
     }
 
-    if (mounted) {
-      setState(() => _isInitialized = true);
-      _fadeController.forward();
-    }
+    if (mounted) _fadeController.forward();
   }
 
   void _toggleControls() {
     setState(() => _showControls = !_showControls);
   }
 
-  void _onImageTap() {
-    if (!_fullQualityLoaded && _asset != null && !_isVideo) {
-      setState(() => _fullQualityLoaded = true);
-    }
-    _toggleControls();
+  void _showTopMessage(BuildContext context, String message) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 16,
+        left: 48,
+        right: 48,
+        child: Material(
+          color: Colors.transparent,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.sheetBackground,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 2), () {
+      entry.remove();
+    });
   }
 
   @override
@@ -116,63 +137,60 @@ class _ViewerScreenState extends State<ViewerScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          GestureDetector(
-            onTap: _onImageTap,
-            child: _buildContent(),
-          ),
+          _hasSliding ? _buildPageView() : _buildSingleContent(),
           if (_showControls) _buildOverlay(),
         ],
       ),
     );
   }
 
-  Widget _buildContent() {
-    if (!_isInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  Widget _buildPageView() {
+    return PageView.builder(
+      controller: _pageController,
+      itemCount: widget.assetIds!.length,
+      onPageChanged: (index) {
+        setState(() {
+          _currentIndex = index;
+          _currentAsset = null;
+          _currentTitle = '';
+        });
+        _loadAssetAtIndex(index);
+      },
+      itemBuilder: (context, index) => _ViewerPage(
+        assetId: widget.assetIds![index],
+        isCurrentPage: index == _currentIndex,
+        onTap: () {
+          if (!_showControls) {
+            _toggleControls();
+          }
+        },
+      ),
+    );
+  }
 
-    if (_isVideo) {
-      return _buildVideoThumbnail();
+  Future<void> _loadAssetAtIndex(int index) async {
+    if (index < widget.assetIds!.length) {
+      final asset = await AssetEntity.fromId(widget.assetIds![index]);
+      if (asset != null && mounted) {
+        setState(() {
+          _currentAsset = asset;
+          _currentTitle = asset.title ?? 'Photo';
+        });
+      }
     }
+  }
 
-    if (widget.isVaultItem && _filePath != null) {
-      return InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
-        child: Center(
-          child: Image.file(
-            File(_filePath!),
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return const Icon(
-                Icons.broken_image,
-                color: Colors.white24,
-                size: 64,
-              );
-            },
-          ),
-        ),
-      );
-    }
-
-    if (widget.assetId != null && _asset != null) {
-      return InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
-        child: Center(
-          child: Hero(
-            tag: 'gallery-thumb-${_asset!.id}',
-            child: AssetEntityImage(
-              _asset!,
-              isOriginal: _fullQualityLoaded,
-              thumbnailSize: _fullQualityLoaded
-                  ? ThumbnailSize(_asset!.width, _asset!.height)
-                  : ThumbnailSize(
-                      (_asset!.width * 0.1).round().clamp(200, 800),
-                      (_asset!.height * 0.1).round().clamp(200, 800),
-                    ),
+  Widget _buildSingleContent() {
+    if (widget.isVaultItem && widget.filePath != null) {
+      return GestureDetector(
+        onTap: _toggleControls,
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Center(
+            child: Image.file(
+              File(widget.filePath!),
               fit: BoxFit.contain,
-              gaplessPlayback: true,
               errorBuilder: (context, error, stackTrace) {
                 return const Icon(
                   Icons.broken_image,
@@ -186,74 +204,36 @@ class _ViewerScreenState extends State<ViewerScreen>
       );
     }
 
-    return const Center(
-      child: Icon(Icons.broken_image, color: Colors.white24, size: 64),
-    );
-  }
-
-  Widget _buildVideoThumbnail() {
-    return GestureDetector(
-      onTap: _openInSystemPlayer,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (_asset != null)
-            Center(
-              child: Hero(
-                tag: 'gallery-thumb-${_asset!.id}',
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: AssetEntityImage(
-                    _asset!,
-                    isOriginal: false,
-                    thumbnailSize: const ThumbnailSize.square(400),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[900],
-                        child: const Icon(Icons.broken_image,
-                            color: Colors.white24),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
-          Center(
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                color: Colors.white,
-                size: 32,
+    if (_currentAsset != null) {
+      return GestureDetector(
+        onTap: _toggleControls,
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Center(
+            child: Hero(
+              tag: 'gallery-thumb-${_currentAsset!.id}',
+              child: AssetEntityImage(
+                _currentAsset!,
+                isOriginal: false,
+                thumbnailSize: const ThumbnailSize.square(800),
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Icon(
+                    Icons.broken_image,
+                    color: Colors.white24,
+                    size: 64,
+                  );
+                },
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _openInSystemPlayer() async {
-    if (_filePath == null) return;
-
-    try {
-      await _channel.invokeMethod('openVideo', {
-        'filePath': _filePath,
-        'mimeType': 'video/*',
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open video: $e')),
-        );
-      }
+        ),
+      );
     }
+
+    return const Center(child: CircularProgressIndicator());
   }
 
   Widget _buildOverlay() {
@@ -279,7 +259,7 @@ class _ViewerScreenState extends State<ViewerScreen>
             children: [
               _buildTopBar(),
               const Spacer(),
-              if (!_isVideo) _buildBottomBar(),
+              _buildBottomBar(),
             ],
           ),
         ),
@@ -288,6 +268,11 @@ class _ViewerScreenState extends State<ViewerScreen>
   }
 
   Widget _buildTopBar() {
+    final displayTitle = _currentTitle.isNotEmpty ? _currentTitle : widget.title;
+    final counter = _hasSliding
+        ? ' ${_currentIndex + 1}/${widget.assetIds!.length}'
+        : '';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
@@ -298,7 +283,7 @@ class _ViewerScreenState extends State<ViewerScreen>
           ),
           Expanded(
             child: Text(
-              widget.title,
+              '$displayTitle$counter',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -379,15 +364,15 @@ class _ViewerScreenState extends State<ViewerScreen>
   Future<void> _share() async {
     try {
       String? path;
-      if (widget.isVaultItem && _filePath != null) {
-        path = _filePath;
-      } else if (_asset != null) {
-        final file = await _asset!.file;
+      if (widget.isVaultItem && widget.filePath != null) {
+        path = widget.filePath;
+      } else if (_currentAsset != null) {
+        final file = await _currentAsset!.file;
         path = file?.path;
       }
 
       if (path != null) {
-        await Share.shareXFiles([XFile(path)], text: widget.title);
+        await Share.shareXFiles([XFile(path)], text: _currentTitle);
       }
     } catch (e) {
       if (mounted) {
@@ -399,10 +384,10 @@ class _ViewerScreenState extends State<ViewerScreen>
   }
 
   Future<void> _setAsWallpaper() async {
-    if (_asset == null) return;
+    if (_currentAsset == null) return;
 
     try {
-      final file = await _asset!.file;
+      final file = await _currentAsset!.file;
       if (file == null) return;
 
       await _channel.invokeMethod('setWallpaper', {
@@ -428,7 +413,7 @@ class _ViewerScreenState extends State<ViewerScreen>
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(20),
         ),
         insetPadding: const EdgeInsets.symmetric(horizontal: 40),
         title: Row(
@@ -441,7 +426,7 @@ class _ViewerScreenState extends State<ViewerScreen>
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              child: const Text('Delete', style: TextStyle(color: AppColors.favoriteRed)),
             ),
           ],
         ),
@@ -450,13 +435,27 @@ class _ViewerScreenState extends State<ViewerScreen>
 
     if (confirmed == true && mounted) {
       try {
-        if (_asset != null) {
-          final success = await TrashService().deleteWithTrash(_asset!);
+        if (_currentAsset != null) {
+          final success = await TrashService().deleteWithTrash(_currentAsset!);
           if (success && mounted) {
-            context.pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Moved to trash')),
-            );
+            if (_hasSliding) {
+              final newIds = List<String>.from(widget.assetIds!)
+                ..removeAt(_currentIndex);
+              if (newIds.isEmpty) {
+                context.pop();
+              } else {
+                final newIndex = _currentIndex.clamp(0, newIds.length - 1);
+                setState(() {
+                  widget.assetIds!.removeAt(_currentIndex);
+                  _currentIndex = newIndex;
+                });
+                _pageController = PageController(initialPage: newIndex);
+                _loadCurrentAsset();
+              }
+            } else {
+              context.pop();
+            }
+            _showTopMessage(context, 'Trashed');
           } else if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -477,7 +476,7 @@ class _ViewerScreenState extends State<ViewerScreen>
   void _showInfo() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1D1D1D),
+      backgroundColor: AppColors.sheetBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -511,8 +510,8 @@ class _ViewerScreenState extends State<ViewerScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
-                _infoRow('Name', widget.title),
-                _infoRow('Type', _isVideo ? 'Video' : 'Image'),
+                _infoRow('Name', _currentTitle),
+                _infoRow('Type', _currentAsset?.type == AssetType.video ? 'Video' : 'Image'),
                 if (metadata['date'] != null)
                   _infoRow('Date', metadata['date']),
                 if (metadata['size'] != null)
@@ -532,37 +531,20 @@ class _ViewerScreenState extends State<ViewerScreen>
   Future<Map<String, dynamic>> _getMetadata() async {
     final metadata = <String, dynamic>{};
 
-    if (_asset != null) {
-      final date = _asset!.createDateTime;
+    if (_currentAsset != null) {
+      final date = _currentAsset!.createDateTime;
       metadata['date'] = DateFormat('MMM d, yyyy HH:mm').format(date);
 
-      if (_asset!.type == AssetType.video) {
-        final duration = _asset!.videoDuration;
+      if (_currentAsset!.type == AssetType.video) {
+        final duration = _currentAsset!.videoDuration;
         metadata['size'] =
             '${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}';
       }
 
-      metadata['dimensions'] = '${_asset!.width}x${_asset!.height}';
-    } else if (_filePath != null) {
-      final file = File(_filePath!);
-      if (await file.exists()) {
-        final stat = await file.stat();
-        metadata['size'] = _formatFileSize(stat.size);
-        metadata['date'] =
-            DateFormat('MMM d, yyyy HH:mm').format(stat.modified);
-      }
+      metadata['dimensions'] = '${_currentAsset!.width}x${_currentAsset!.height}';
     }
 
     return metadata;
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
   Widget _infoRow(String label, String value) {
@@ -591,5 +573,162 @@ class _ViewerScreenState extends State<ViewerScreen>
         ],
       ),
     );
+  }
+}
+
+class _ViewerPage extends StatefulWidget {
+  final String assetId;
+  final bool isCurrentPage;
+  final VoidCallback? onTap;
+
+  const _ViewerPage({
+    required this.assetId,
+    required this.isCurrentPage,
+    this.onTap,
+  });
+
+  @override
+  State<_ViewerPage> createState() => _ViewerPageState();
+}
+
+class _ViewerPageState extends State<_ViewerPage>
+    with AutomaticKeepAliveClientMixin {
+  AssetEntity? _asset;
+  bool _isLoading = true;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAsset();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ViewerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assetId != widget.assetId) {
+      _loadAsset();
+    }
+  }
+
+  Future<void> _loadAsset() async {
+    setState(() => _isLoading = true);
+    final asset = await AssetEntity.fromId(widget.assetId);
+    if (mounted) {
+      setState(() {
+        _asset = asset;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_asset == null) {
+      return const Center(
+        child: Icon(Icons.broken_image, color: Colors.white24, size: 64),
+      );
+    }
+
+    if (_asset!.type == AssetType.video) {
+      return _buildVideoPage();
+    }
+
+    return _buildImagePage();
+  }
+
+  Widget _buildImagePage() {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 4.0,
+        child: Center(
+          child: AssetEntityImage(
+            _asset!,
+            isOriginal: false,
+            thumbnailSize: const ThumbnailSize.square(800),
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(
+                Icons.broken_image,
+                color: Colors.white24,
+                size: 64,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoPage() {
+    return GestureDetector(
+      onTap: () => _openInSystemPlayer(),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: AssetEntityImage(
+                _asset!,
+                isOriginal: false,
+                thumbnailSize: const ThumbnailSize.square(400),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[900],
+                    child: const Icon(Icons.broken_image,
+                        color: Colors.white24),
+                  );
+                },
+              ),
+            ),
+          ),
+          Center(
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openInSystemPlayer() async {
+    try {
+      final file = await _asset!.file;
+      if (file == null) return;
+      await _ViewerScreenState._channel.invokeMethod('openVideo', {
+        'filePath': file.path,
+        'mimeType': 'video/*',
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open video: $e')),
+        );
+      }
+    }
   }
 }

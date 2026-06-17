@@ -45,7 +45,7 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
               items: vaultState.filteredItems,
               onTap: (item) async {
                 final file =
-                    await ref.read(vaultProvider.notifier).decryptForViewing(item);
+                    await ref.read(vaultProvider.notifier).getFileForViewing(item);
                 if (file != null && context.mounted) {
                   context.push('/viewer', extra: {
                     'filePath': file.path,
@@ -60,7 +60,7 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
                   context: context,
                   builder: (context) => AlertDialog(
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     insetPadding: const EdgeInsets.symmetric(horizontal: 40),
                     title: Row(

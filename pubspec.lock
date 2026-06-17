@@ -178,7 +178,7 @@ packages:
     source: hosted
     version: "4.11.1"
   collection:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: collection
       sha256: "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76"
@@ -289,14 +289,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.28.0"
-  exif:
-    dependency: "direct main"
-    description:
-      name: exif
-      sha256: a7980fdb3b7ffcd0b035e5b8a5e1eef7cadfe90ea6a4e85ebb62f87b96c7a172
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.3.0"
   fake_async:
     dependency: transitive
     description:
@@ -342,14 +334,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_cache_manager:
-    dependency: "direct main"
-    description:
-      name: flutter_cache_manager
-      sha256: "400b6592f16a4409a7f2bb929a9a7e38c72cceb8ffb99ee57bbf2cb2cecf8386"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.4.1"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -1037,54 +1021,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.10.2"
-  sprintf:
-    dependency: transitive
-    description:
-      name: sprintf
-      sha256: "1fc9ffe69d4df602376b52949af107d8f5703b77cda567c4d7d86a0693120f23"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.0.0"
-  sqflite:
-    dependency: transitive
-    description:
-      name: sqflite
-      sha256: "58a799e6ac17dd32fbab93813d39ed835a75ccc0f8f85b8955fe318c6712b082"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.4.3"
-  sqflite_android:
-    dependency: transitive
-    description:
-      name: sqflite_android
-      sha256: d0548f9d7422a2dae99ec6f8b0a3074463b132d216fa5ba0d230eeefc901983b
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.4.3"
-  sqflite_common:
-    dependency: transitive
-    description:
-      name: sqflite_common
-      sha256: "5bf6a55c166e73bf651ba7ec3ed486e577620e3dc8f3a9c6a258a8031b624590"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.5.11"
-  sqflite_darwin:
-    dependency: transitive
-    description:
-      name: sqflite_darwin
-      sha256: "164a5d73ab87a134566057219988bafde837029a64264e61f1f04376ef3cfcd2"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.4.3"
-  sqflite_platform_interface:
-    dependency: transitive
-    description:
-      name: sqflite_platform_interface
-      sha256: f84939f84350d92d04416f8bc4dc52d3896aec7716cc9e80cf0146342139dc50
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.4.1"
   sqlite3:
     dependency: transitive
     description:
@@ -1149,14 +1085,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.1"
-  synchronized:
-    dependency: transitive
-    description:
-      name: synchronized
-      sha256: "93b153dcb6a26dcddee6ca087dd634b53e38c10b5aa163e8e49501a776456153"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.4.1"
   term_glyph:
     dependency: transitive
     description:

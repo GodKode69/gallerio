@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
+import '../../../app/theme.dart';
 import '../providers/gallery_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../app/shell_screen.dart';
@@ -93,7 +94,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         title: TextField(
           controller: _controller,
           focusNode: _focusNode,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: 'Search photos...',
             hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
@@ -172,8 +173,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: _showFavoritesOnly
-              ? Colors.redAccent.withValues(alpha: 0.8)
-              : Colors.white.withValues(alpha: 0.08),
+              ? AppColors.favoriteRed.withValues(alpha: 0.8)
+              : AppColors.textPrimary.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -181,14 +182,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             Icon(
               _showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               size: 16,
             ),
             const SizedBox(width: 4),
             Text(
               'Favorites',
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 13,
                 fontWeight: _showFavoritesOnly
                     ? FontWeight.w600
@@ -224,7 +225,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white54,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
           ),
@@ -281,9 +282,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               ref
                                   .read(galleryProvider.notifier)
                                   .addToRecentlyViewed(row[i]);
+                              final flatIndex = recentlyViewed.indexOf(row[i]);
                               context.push('/viewer', extra: {
                                 'assetId': row[i].id,
                                 'title': row[i].title ?? 'Photo',
+                                'assetIds': recentlyViewed.map((a) => a.id).toList(),
+                                'initialIndex': flatIndex >= 0 ? flatIndex : 0,
                               });
                             },
                             child: AspectRatio(
@@ -295,9 +299,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   ref
                                       .read(galleryProvider.notifier)
                                       .addToRecentlyViewed(row[i]);
+                                  final flatIndex = recentlyViewed.indexOf(row[i]);
                                   context.push('/viewer', extra: {
                                     'assetId': row[i].id,
                                     'title': row[i].title ?? 'Photo',
+                                    'assetIds': recentlyViewed.map((a) => a.id).toList(),
+                                    'initialIndex': flatIndex >= 0 ? flatIndex : 0,
                                   });
                                 },
                               ),
@@ -367,6 +374,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             context.push('/viewer', extra: {
               'assetId': asset.id,
               'title': asset.title ?? 'Photo',
+              'assetIds': results.map((a) => a.id).toList(),
+              'initialIndex': index,
             });
           },
           onLongPress: () {

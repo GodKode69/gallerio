@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../app/theme.dart';
 
 class GallerioNavBar extends StatelessWidget {
   final int currentIndex;
@@ -40,7 +41,7 @@ class GallerioNavBar extends StatelessWidget {
       child: Container(
         height: 56,
         decoration: BoxDecoration(
-          color: const Color(0xFF2A2A2A).withValues(alpha: 0.95),
+          color: AppColors.chipBackground.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
@@ -149,7 +150,7 @@ class _NavBarItemState extends State<_NavBarItem>
           scale: _scaleAnimation,
           child: Icon(
             widget.icon,
-            color: widget.isSelected ? widget.activeColor : Colors.white54,
+            color: widget.isSelected ? widget.activeColor : AppColors.textSecondary,
             size: 24,
           ),
         ),
@@ -158,7 +159,7 @@ class _NavBarItemState extends State<_NavBarItem>
           duration: const Duration(milliseconds: 200),
           style: TextStyle(
             fontSize: 10,
-            color: widget.isSelected ? widget.activeColor : Colors.white54,
+            color: widget.isSelected ? widget.activeColor : AppColors.textSecondary,
             fontWeight:
                 widget.isSelected ? FontWeight.w600 : FontWeight.normal,
           ),

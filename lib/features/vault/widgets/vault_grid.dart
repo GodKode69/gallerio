@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../../../app/theme.dart';
 import '../../../core/database/database.dart';
 
 class VaultGrid extends StatelessWidget {
@@ -90,7 +91,7 @@ class _VaultItemTile extends StatelessWidget {
                 context: context,
                 builder: (context) => AlertDialog(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   insetPadding: const EdgeInsets.symmetric(horizontal: 40),
                   title: Row(

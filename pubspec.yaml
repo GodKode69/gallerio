@@ -50,18 +50,11 @@ dependencies:
   # Share
   share_plus: ^10.1.4
 
-  # EXIF metadata
-  exif: ^3.3.0
-
   # Animations
   shimmer: ^3.0.0
 
-  # Caching
-  flutter_cache_manager: ^3.4.1
-
   # Utilities
   intl: ^0.19.0
-  collection: ^1.19.1
 
   # SharedPreferences for recently viewed
   shared_preferences: ^2.3.3

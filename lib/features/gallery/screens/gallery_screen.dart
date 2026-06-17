@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../app/theme.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/monthly_gallery.dart';
 import '../widgets/shimmer_loading.dart';
@@ -130,7 +131,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
 
     return RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: AppColors.navBarBackground,
       onRefresh: () async {
         await ref.read(galleryProvider.notifier).refresh();
       },
@@ -178,7 +179,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             IconButton(
               icon: Icon(
                 showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
-                color: showFavoritesOnly ? Colors.redAccent : Colors.white70,
+                color: showFavoritesOnly ? AppColors.favoriteRed : AppColors.textMuted,
               ),
               onPressed: () => ref
                   .read(galleryProvider.notifier)

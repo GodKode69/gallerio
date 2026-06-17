@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 import 'dart:io';
+import '../../../app/theme.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/trash/trash_service.dart';
 import '../../../core/database/database.dart';
@@ -112,8 +113,8 @@ class _SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: Colors.white70),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      leading: Icon(icon, color: AppColors.textMuted),
+      title: Text(title, style: const TextStyle(color: AppColors.textPrimary)),
       subtitle: subtitle != null
           ? Text(
               subtitle!,
@@ -125,7 +126,7 @@ class _SettingsTile extends StatelessWidget {
           : null,
       trailing: onTap != null
           ? Icon(Icons.chevron_right,
-              color: Colors.white.withValues(alpha: 0.3))
+              color: AppColors.textPrimary.withValues(alpha: 0.3))
           : null,
       onTap: onTap,
     );
@@ -148,9 +149,9 @@ class _BiometricToggleState extends ConsumerState<_BiometricToggle> {
     final notifier = ref.read(authStateProvider.notifier);
 
     return SwitchListTile(
-      secondary: const Icon(Icons.fingerprint, color: Colors.white70),
+      secondary: const Icon(Icons.fingerprint, color: AppColors.textMuted),
       title: const Text('Biometric Login',
-          style: TextStyle(color: Colors.white)),
+          style: TextStyle(color: AppColors.textPrimary)),
       subtitle: Text(
         'Use fingerprint or face to unlock',
         style: TextStyle(
@@ -266,11 +267,11 @@ class TrashScreenState extends State<TrashScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.delete_outline,
-                            size: 64, color: Colors.white24),
+                            size: 64, color: AppColors.iconOverlay),
                         SizedBox(height: 16),
                         Text(
                           'Trash is empty',
-                          style: TextStyle(color: Colors.white54, fontSize: 16),
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
                         ),
                       ],
                     ),
@@ -283,7 +284,7 @@ class TrashScreenState extends State<TrashScreen> {
                       final daysLeft = 30 -
                           DateTime.now().difference(item.deletedAt).inDays;
                       return Card(
-                        color: const Color(0xFF1D1D1D),
+                        color: AppColors.sheetBackground,
                         margin: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 4),
                         child: ListTile(
@@ -299,14 +300,14 @@ class TrashScreenState extends State<TrashScreen> {
                                   item.mimeType == 'video'
                                       ? Icons.videocam
                                       : Icons.photo,
-                                  color: Colors.white54,
+                                    color: AppColors.textSecondary,
                                 ),
                               ),
                             ),
                           ),
                           title: Text(
                             item.name,
-                            style: const TextStyle(color: Colors.white),
+                            style: const TextStyle(color: AppColors.textPrimary),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -314,8 +315,8 @@ class TrashScreenState extends State<TrashScreen> {
                             'Deletes in $daysLeft days',
                             style: TextStyle(
                               color: daysLeft <= 3
-                                  ? Colors.redAccent
-                                  : Colors.white54,
+                                  ? AppColors.favoriteRed
+                                  : AppColors.textSecondary,
                               fontSize: 12,
                             ),
                           ),
@@ -324,13 +325,13 @@ class TrashScreenState extends State<TrashScreen> {
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.restore,
-                                    color: Colors.white70),
+                                    color: AppColors.textMuted),
                                 onPressed: () => _restore(item),
                                 tooltip: 'Restore',
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_forever,
-                                    color: Colors.redAccent),
+                                    color: AppColors.favoriteRed),
                                 onPressed: () => _permanentDelete(item),
                                 tooltip: 'Delete forever',
                               ),
@@ -360,7 +361,7 @@ class TrashScreenState extends State<TrashScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(20),
         ),
         title: const Text('Delete forever?'),
         actions: [
@@ -370,7 +371,7 @@ class TrashScreenState extends State<TrashScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: AppColors.favoriteRed)),
           ),
         ],
       ),
@@ -387,7 +388,7 @@ class TrashScreenState extends State<TrashScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(20),
         ),
         title: const Text('Empty trash?'),
         actions: [
@@ -397,7 +398,7 @@ class TrashScreenState extends State<TrashScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Empty', style: TextStyle(color: Colors.red)),
+            child: const Text('Empty', style: TextStyle(color: AppColors.favoriteRed)),
           ),
         ],
       ),
@@ -422,9 +423,9 @@ class _VaultSecurityToggle extends ConsumerWidget {
       children: [
         SwitchListTile(
           secondary:
-              const Icon(Icons.shield_outlined, color: Colors.white70),
+              const Icon(Icons.shield_outlined, color: AppColors.textMuted),
           title: const Text('Vault Security',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.textPrimary)),
           subtitle: Text(
             'Require vault code in search to access hidden vault',
             style: TextStyle(

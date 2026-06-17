@@ -34,7 +34,11 @@ class TrashItems extends Table {
 
 @DriftDatabase(tables: [VaultItems, TrashItems])
 class GallerioDatabase extends _$GallerioDatabase {
-  GallerioDatabase() : super(_openConnection());
+  static GallerioDatabase? _instance;
+
+  factory GallerioDatabase() => _instance ??= GallerioDatabase._();
+
+  GallerioDatabase._() : super(_openConnection());
 
   @override
   int get schemaVersion => 2;
@@ -62,24 +66,18 @@ class GallerioDatabase extends _$GallerioDatabase {
   Future<int> deleteVaultItem(int id) =>
       (delete(vaultItems)..where((t) => t.id.equals(id))).go();
 
-  Future<int> deleteAllVaultItems() => delete(vaultItems).go();
-
   Future<VaultItem?> getVaultItemById(int id) =>
       (select(vaultItems)..where((t) => t.id.equals(id))).getSingleOrNull();
 
   Future<List<VaultItem>> getAllVaultItems() => select(vaultItems).get();
 
-  Future<List<VaultItem>> getVaultItemsByAlbum(String album) =>
-      (select(vaultItems)..where((t) => t.album.equals(album))).get();
-
-  Future<List<VaultItem>> getFavoriteItems() =>
-      (select(vaultItems)..where((t) => t.isFavorite.equals(true))).get();
-
-  Future<List<VaultItem>> searchVaultItems(String query) =>
-      (select(vaultItems)
-            ..where((t) => t.name.like(
-                '%${query.replaceAll('%', '\\%').replaceAll('_', '\\_')}%')))
-          .get();
+  Future<List<VaultItem>> searchVaultItems(String query) async {
+    final queryLower = query.toLowerCase();
+    final allItems = await select(vaultItems).get();
+    return allItems
+        .where((item) => item.name.toLowerCase().contains(queryLower))
+        .toList();
+  }
 
   Future<List<String>> getAllAlbums() async {
     final query = selectOnly(vaultItems)
@@ -91,15 +89,6 @@ class GallerioDatabase extends _$GallerioDatabase {
         .where((a) => a.isNotEmpty)
         .toList();
   }
-
-  Stream<List<VaultItem>> watchAllVaultItems() =>
-      select(vaultItems).watch();
-
-  Stream<List<VaultItem>> watchVaultItemsByAlbum(String album) =>
-      (select(vaultItems)..where((t) => t.album.equals(album))).watch();
-
-  Stream<List<VaultItem>> watchFavoriteItems() =>
-      (select(vaultItems)..where((t) => t.isFavorite.equals(true))).watch();
 
   // --- Trash Items ---
 
