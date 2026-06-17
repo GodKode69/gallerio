@@ -52,9 +52,7 @@ class TrashService {
   }
 
   Future<void> deleteMultipleWithTrash(List<AssetEntity> assets) async {
-    for (final asset in assets) {
-      await moveToTrash(asset);
-    }
+    await Future.wait(assets.map((a) => moveToTrash(a)));
     final ids = assets.map((a) => a.id).toList();
     try {
       await PhotoManager.editor.deleteWithIds(ids);

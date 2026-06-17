@@ -358,13 +358,10 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final ids = prefs.getStringList('recently_viewed_ids') ?? [];
-      final assets = <AssetEntity>[];
-      for (final id in ids) {
-        final asset = await AssetEntity.fromId(id);
-        if (asset != null) {
-          assets.add(asset);
-        }
-      }
+      final results = await Future.wait(
+        ids.map((id) => AssetEntity.fromId(id)),
+      );
+      final assets = results.whereType<AssetEntity>().toList();
       state = state.copyWith(recentlyViewed: assets);
     } catch (_) {}
   }

@@ -337,6 +337,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                         );
 
                         return GalleryThumbnail(
+                          key: ValueKey(asset.id),
                           asset: asset,
                           enableHero: true,
                           isSelected: selectedAssetIds.contains(asset.id),

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
+import 'dart:isolate';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
 import '../providers/vault_provider.dart';
@@ -137,25 +139,26 @@ class VaultImportButton extends ConsumerWidget {
       const SnackBar(content: Text('Scanning folder...')),
     );
 
-    final directory = Directory(directoryPath);
-    final imageVideoExtensions = {
-      'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif',
-      'mp4', 'mov', 'avi', 'mkv', 'webm', '3gp',
-    };
-
-    final files = directory
-        .listSync()
-        .whereType<File>()
-        .where((file) {
-          final ext = file.path.split('.').last.toLowerCase();
-          return imageVideoExtensions.contains(ext);
-        })
-        .toList()
-      ..sort((a, b) {
-        final aStat = a.statSync();
-        final bStat = b.statSync();
-        return bStat.modified.compareTo(aStat.modified);
-      });
+    final files = await Isolate.run(() {
+      final directory = Directory(directoryPath);
+      const imageVideoExtensions = {
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif',
+        'mp4', 'mov', 'avi', 'mkv', 'webm', '3gp',
+      };
+      return directory
+          .listSync()
+          .whereType<File>()
+          .where((file) {
+            final ext = file.path.split('.').last.toLowerCase();
+            return imageVideoExtensions.contains(ext);
+          })
+          .toList()
+        ..sort((a, b) {
+          final aStat = a.statSync();
+          final bStat = b.statSync();
+          return bStat.modified.compareTo(aStat.modified);
+        });
+    });
 
     if (files.isEmpty) {
       if (context.mounted) {
