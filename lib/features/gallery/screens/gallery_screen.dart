@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:photo_manager/photo_manager.dart';
 import '../../../app/theme.dart';
+import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/gallery_scroll_handle.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/monthly_gallery.dart';
 import '../widgets/shimmer_loading.dart';
@@ -21,11 +24,29 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   final ScrollController _scrollController = ScrollController();
   final Map<int, Offset> _pointers = {};
   bool _isPinching = false;
+  ThumbnailPrefetcher? _prefetcher;
+  List<AssetEntity>? _lastDisplayAssets;
+  List<MonthSection> _sections = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _prefetcher = ThumbnailPrefetcher(cellPixelSize: 200);
+  }
 
   @override
   void dispose() {
+    _prefetcher?.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  bool _sectionsEquals(List<MonthSection> a, List<MonthSection> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].offset != b[i].offset || a[i].label != b[i].label) return false;
+    }
+    return true;
   }
 
   Widget _buildBody(BuildContext context) {
@@ -39,12 +60,22 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     final isSelectionMode = ref.watch(
       galleryProvider.select((s) => s.isSelectionMode),
     );
-    final assets = ref.watch(
-      galleryProvider.select((s) => s.assets),
-    );
     final favoriteIds = ref.watch(
       galleryProvider.select((s) => s.favoriteIds),
     );
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final spacing = 2.0;
+    final cellWidth = (screenWidth - spacing * (gridColumns + 1)) / gridColumns;
+    final cellPx = (cellWidth * dpr).round();
+
+    _prefetcher!.cellPixelSize = cellPx;
+
+    if (!identical(_lastDisplayAssets, displayAssets)) {
+      _lastDisplayAssets = displayAssets;
+      _prefetcher!.updateAssets(displayAssets);
+    }
 
     final content = Listener(
       onPointerDown: (event) {
@@ -100,11 +131,10 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
           ref.read(isPinchingProvider.notifier).state = false;
         }
       },
-      child: Scrollbar(
-        controller: _scrollController,
-        thickness: 3,
-        radius: const Radius.circular(4),
-        thumbVisibility: true,
+      child: GalleryScrollHandle(
+        scrollController: _scrollController,
+        sections: _sections,
+        bottomReservedHeight: MediaQuery.of(context).viewPadding.bottom + 68.0,
         child: MonthlyGallery(
           assets: displayAssets,
           columns: gridColumns,
@@ -113,9 +143,18 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
           favoriteIds: ref.read(galleryProvider).favoriteIds,
           onToggleSelection: (id) =>
               ref.read(galleryProvider.notifier).toggleSelection(id),
+          onSetSelection: (ids) =>
+              ref.read(galleryProvider.notifier).setSelection(ids),
           onEnterSelectionMode: () =>
               ref.read(galleryProvider.notifier).enterSelectionMode(),
           externalScrollController: _scrollController,
+          prefetcher: _prefetcher,
+          onCollapsedMonthsChanged: (months) {},
+          onSectionsBuilt: (sections) {
+            if (!_sectionsEquals(_sections, sections)) {
+              setState(() => _sections = sections);
+            }
+          },
         ),
       ),
     );
@@ -175,7 +214,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             IconButton(
               icon: Icon(
                 showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
-                color: showFavoritesOnly ? AppColors.favoriteRed : AppColors.textMuted,
+                color: showFavoritesOnly
+                    ? AppColors.favoriteRed
+                    : AppColors.textMuted,
               ),
               onPressed: () => ref
                   .read(galleryProvider.notifier)

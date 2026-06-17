@@ -1,55 +1,83 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import '../../../app/theme.dart';
+import '../../../core/cache/thumbnail_prefetcher.dart';
 
-class GalleryThumbnail extends StatelessWidget {
+class GalleryThumbnail extends StatefulWidget {
   final AssetEntity asset;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
   final bool isSelected;
   final bool isFavorite;
   final bool showSelection;
   final bool enableHero;
-  final double? size;
+  final ThumbnailPrefetcher? prefetcher;
+  final ThumbnailSize thumbnailSize;
 
   const GalleryThumbnail({
     super.key,
     required this.asset,
+    required this.thumbnailSize,
     this.onTap,
-    this.onLongPress,
     this.isSelected = false,
     this.isFavorite = false,
     this.showSelection = false,
     this.enableHero = true,
-    this.size,
+    this.prefetcher,
   });
 
   @override
+  State<GalleryThumbnail> createState() => _GalleryThumbnailState();
+}
+
+class _GalleryThumbnailState extends State<GalleryThumbnail> {
+  @override
+  void initState() {
+    super.initState();
+    widget.prefetcher?.addListener(_onCacheChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant GalleryThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.prefetcher != widget.prefetcher) {
+      oldWidget.prefetcher?.removeListener(_onCacheChanged);
+      widget.prefetcher?.addListener(_onCacheChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.prefetcher?.removeListener(_onCacheChanged);
+    super.dispose();
+  }
+
+  void _onCacheChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    Widget image = AssetEntityImage(
-      asset,
-      isOriginal: false,
-      thumbnailSize: ThumbnailSize(
-        (asset.width * 0.1).round().clamp(200, 800),
-        (asset.height * 0.1).round().clamp(200, 800),
-      ),
-      fit: BoxFit.cover,
-      gaplessPlayback: true,
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          color: Colors.grey[900],
-          child: const Icon(Icons.broken_image, color: Colors.white24),
-        );
-      },
-    );
+    final cached = widget.prefetcher?.getCachedThumbnail(widget.asset.id);
 
-    image = _FadeInImage(child: image);
+    Widget image;
 
-    if (enableHero) {
+    if (cached != null) {
+      image = Image.memory(
+        cached,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) {
+          return _fallbackThumbnail();
+        },
+      );
+    } else {
+      image = _placeholderThumbnail();
+    }
+
+    if (widget.enableHero) {
       image = Hero(
-        tag: 'gallery-thumb-${asset.id}',
+        tag: 'gallery-thumb-${widget.asset.id}',
         child: image,
       );
     }
@@ -57,11 +85,7 @@ class GalleryThumbnail extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
-        onTap?.call();
-      },
-      onLongPress: () {
-        HapticFeedback.mediumImpact();
-        onLongPress?.call();
+        widget.onTap?.call();
       },
       child: AspectRatio(
         aspectRatio: 1,
@@ -69,25 +93,25 @@ class GalleryThumbnail extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             image,
-            if (asset.type == AssetType.video)
+            if (widget.asset.type == AssetType.video)
               Positioned(
                 bottom: 4,
                 left: 4,
-                child: _VideoBadge(duration: asset.videoDuration),
+                child: _VideoBadge(duration: widget.asset.videoDuration),
               ),
-            if (isFavorite)
+            if (widget.isFavorite)
               const Positioned(
                 top: 4,
                 right: 4,
                 child: _FavoriteBadge(),
               ),
-            if (showSelection)
+            if (widget.showSelection)
               Positioned(
                 top: 4,
                 left: 4,
-                child: _SelectionBadge(isSelected: isSelected),
+                child: _SelectionBadge(isSelected: widget.isSelected),
               ),
-            if (showSelection && isSelected)
+            if (widget.showSelection && widget.isSelected)
               Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context)
@@ -101,33 +125,17 @@ class GalleryThumbnail extends StatelessWidget {
       ),
     );
   }
-}
 
-class _FadeInImage extends StatefulWidget {
-  final Widget child;
-  const _FadeInImage({required this.child});
-
-  @override
-  State<_FadeInImage> createState() => _FadeInImageState();
-}
-
-class _FadeInImageState extends State<_FadeInImage> {
-  bool _visible = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _visible = true);
-    });
+  Widget _placeholderThumbnail() {
+    return Container(
+      color: Colors.grey[900],
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: _visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 300),
-      child: widget.child,
+  Widget _fallbackThumbnail() {
+    return Container(
+      color: Colors.grey[900],
+      child: const Icon(Icons.broken_image, color: Colors.white24),
     );
   }
 }

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme.dart';
+import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/gallery_scroll_handle.dart';
 import 'gallery_thumbnail.dart';
-import 'staggered_animation.dart';
+
+const double _kHeaderHeight = 56.0;
+const double _kAutoScrollEdgeZone = 80.0;
+const double _kAutoScrollMaxSpeed = 20.0;
 
 class MonthlyGallery extends StatefulWidget {
   final List<AssetEntity> assets;
@@ -14,10 +19,13 @@ class MonthlyGallery extends StatefulWidget {
   final bool isSelectionMode;
   final Set<String> favoriteIds;
   final ValueChanged<String>? onToggleSelection;
+  final ValueChanged<Set<String>>? onSetSelection;
   final VoidCallback? onEnterSelectionMode;
   final ValueChanged<String>? onToggleFavorite;
   final ScrollController? externalScrollController;
-  final ValueChanged<Set<String>>? onDragSelectionUpdate;
+  final ThumbnailPrefetcher? prefetcher;
+  final ValueChanged<Set<String>>? onCollapsedMonthsChanged;
+  final ValueChanged<List<MonthSection>>? onSectionsBuilt;
 
   const MonthlyGallery({
     super.key,
@@ -27,10 +35,13 @@ class MonthlyGallery extends StatefulWidget {
     this.isSelectionMode = false,
     this.favoriteIds = const {},
     this.onToggleSelection,
+    this.onSetSelection,
     this.onEnterSelectionMode,
     this.onToggleFavorite,
     this.externalScrollController,
-    this.onDragSelectionUpdate,
+    this.prefetcher,
+    this.onCollapsedMonthsChanged,
+    this.onSectionsBuilt,
   });
 
   @override
@@ -41,22 +52,27 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
   late ScrollController _scrollController;
   List<_ListItem>? _cachedItems;
   List<AssetEntity>? _lastAssets;
-  bool _isDragging = false;
-  final Set<String> _dragSelectedIds = {};
-  String? _lastDraggedAssetId;
   final Set<String> _collapsedMonths = {};
+
+  int _dragStartIndex = -1;
+  bool _isDragging = false;
+  Offset? _lastFingerPosition;
+  Ticker? _autoScrollTicker;
+  double _autoScrollSpeed = 0;
 
   @override
   void initState() {
     super.initState();
     _scrollController = widget.externalScrollController ?? ScrollController();
+    _scrollController.addListener(_onScrollForPrefetch);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pushVisibleIds());
   }
 
   @override
   void didUpdateWidget(covariant MonthlyGallery oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    if (!identical(oldWidget.assets, widget.assets)) {
+    if (!identical(oldWidget.assets, widget.assets) ||
+        oldWidget.columns != widget.columns) {
       _cachedItems = null;
       _lastAssets = null;
     }
@@ -64,125 +80,174 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
   @override
   void dispose() {
+    _stopAutoScroll();
+    _scrollController.removeListener(_onScrollForPrefetch);
     if (widget.externalScrollController == null) {
       _scrollController.dispose();
     }
     super.dispose();
   }
 
-  String? _getAssetIdAtPosition(Offset globalPosition, BuildContext context) {
+  void _onScrollForPrefetch() {
+    _pushVisibleIds();
+  }
+
+  void _pushVisibleIds() {
+    if (!mounted || widget.prefetcher == null || !_scrollController.hasClients) {
+      return;
+    }
+
+    final offset = _scrollController.offset;
+    final viewportHeight = MediaQuery.of(context).size.height;
+    final items = _cachedItems ?? _buildFlatList(widget.assets);
+
+    final visibleIds = <String>{};
+    double y = 0;
+    for (final item in items) {
+      final h = item.height;
+      if (item is _RowItem && y + h > offset && y < offset + viewportHeight) {
+        for (final a in item.assets) {
+          visibleIds.add(a.id);
+        }
+      }
+      y += h;
+    }
+    widget.prefetcher!.updateVisibleIds(visibleIds);
+  }
+
+  int _getGlobalIndexAtPosition(Offset globalPosition, BuildContext context) {
     final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return null;
+    if (renderBox == null) return -1;
 
     final localPosition = renderBox.globalToLocal(globalPosition);
     final screenWidth = MediaQuery.of(context).size.width;
     final spacing = 2.0;
-    final cellSize = (screenWidth - spacing * (widget.columns + 1)) / widget.columns;
+    final cellWidth = (screenWidth - spacing * (widget.columns + 1)) / widget.columns;
+    final cellHeight = cellWidth;
 
-    final scrollOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : 0.0;
-
+    final scrollOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
     final adjustedY = localPosition.dy + scrollOffset;
 
     final items = _buildFlatList(widget.assets);
-    int currentY = 0;
+    double currentY = 0;
 
     for (final item in items) {
       if (item is _HeaderItem) {
-        currentY += item.collapsed ? 52 : 52;
+        currentY += _kHeaderHeight;
         continue;
       }
-
-      if (item is _CollapsedMonthItem) {
-        currentY += 0;
-        continue;
-      }
+      if (item is _CollapsedMonthItem) continue;
 
       final row = item as _RowItem;
-
-      if (adjustedY >= currentY && adjustedY < currentY + cellSize) {
-        final colIndex = ((localPosition.dx - spacing) / (cellSize + spacing)).floor();
+      if (adjustedY >= currentY && adjustedY < currentY + cellHeight) {
+        final colIndex = ((localPosition.dx - spacing) / (cellWidth + spacing)).floor();
         if (colIndex >= 0 && colIndex < row.assets.length) {
-          return row.assets[colIndex].id;
+          return widget.assets.indexOf(row.assets[colIndex]);
         }
       }
-
-      currentY += (cellSize + spacing).toInt();
+      currentY += cellHeight + spacing;
     }
-
-    return null;
+    return -1;
   }
 
   void _onDragStart(Offset globalPosition, BuildContext context) {
-    final assetId = _getAssetIdAtPosition(globalPosition, context);
-    if (assetId != null) {
-      _isDragging = true;
-      _dragSelectedIds.clear();
-      _dragSelectedIds.add(assetId);
-      _lastDraggedAssetId = assetId;
+    final index = _getGlobalIndexAtPosition(globalPosition, context);
+    if (index < 0 || index >= widget.assets.length) return;
 
-      if (!widget.isSelectionMode) {
-        widget.onEnterSelectionMode?.call();
-      }
+    _dragStartIndex = index;
+    _isDragging = true;
+    _lastFingerPosition = globalPosition;
 
-      for (final id in _dragSelectedIds) {
-        if (!widget.selectedAssetIds.contains(id)) {
-          widget.onToggleSelection?.call(id);
-        }
-      }
+    if (!widget.isSelectionMode) {
+      widget.onEnterSelectionMode?.call();
     }
+
+    final newIds = {widget.assets[index].id};
+    widget.onSetSelection?.call(newIds);
   }
 
   void _onDragUpdate(Offset globalPosition, BuildContext context) {
     if (!_isDragging) return;
 
-    final assetId = _getAssetIdAtPosition(globalPosition, context);
-    if (assetId != null && assetId != _lastDraggedAssetId) {
-      _lastDraggedAssetId = assetId;
+    _lastFingerPosition = globalPosition;
+    final index = _getGlobalIndexAtPosition(globalPosition, context);
+    if (index < 0 || index >= widget.assets.length) return;
 
-      final newDragIds = <String>{assetId};
-
-      if (_dragSelectedIds.isNotEmpty) {
-        final allAssets = widget.assets;
-        final lastId = _dragSelectedIds.last;
-        final lastIndex = allAssets.indexWhere((a) => a.id == lastId);
-        final currentIndex = allAssets.indexWhere((a) => a.id == assetId);
-
-        if (lastIndex >= 0 && currentIndex >= 0) {
-          final start = lastIndex < currentIndex ? lastIndex : currentIndex;
-          final end = lastIndex < currentIndex ? currentIndex : lastIndex;
-
-          for (int i = start; i <= end; i++) {
-            newDragIds.add(allAssets[i].id);
-          }
-        }
-      }
-
-      final toSelect = newDragIds.difference(_dragSelectedIds);
-      final toDeselect = _dragSelectedIds.difference(newDragIds);
-
-      _dragSelectedIds
-        ..clear()
-        ..addAll(newDragIds);
-
-      for (final id in toSelect) {
-        if (!widget.selectedAssetIds.contains(id)) {
-          widget.onToggleSelection?.call(id);
-        }
-      }
-      for (final id in toDeselect) {
-        if (widget.selectedAssetIds.contains(id)) {
-          widget.onToggleSelection?.call(id);
-        }
-      }
-    }
+    _updateSelectionForRange(index);
+    _checkAutoScroll(globalPosition, context);
   }
 
   void _onDragEnd() {
     _isDragging = false;
-    _dragSelectedIds.clear();
-    _lastDraggedAssetId = null;
+    _dragStartIndex = -1;
+    _lastFingerPosition = null;
+    _stopAutoScroll();
+  }
+
+  void _updateSelectionForRange(int hoverIndex) {
+    final start = _dragStartIndex < hoverIndex ? _dragStartIndex : hoverIndex;
+    final end = _dragStartIndex < hoverIndex ? hoverIndex : _dragStartIndex;
+
+    final newIds = <String>{};
+    for (int i = start; i <= end; i++) {
+      newIds.add(widget.assets[i].id);
+    }
+    widget.onSetSelection?.call(newIds);
+  }
+
+  void _checkAutoScroll(Offset globalPosition, BuildContext context) {
+    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final localY = renderBox.globalToLocal(globalPosition).dy;
+    final screenHeight = renderBox.size.height;
+
+    if (localY < _kAutoScrollEdgeZone && _scrollController.offset > 0) {
+      final ratio = 1.0 - (localY / _kAutoScrollEdgeZone);
+      _autoScrollSpeed = -ratio * _kAutoScrollMaxSpeed;
+      _startAutoScroll();
+    } else if (localY > screenHeight - _kAutoScrollEdgeZone &&
+        _scrollController.offset < _scrollController.position.maxScrollExtent) {
+      final ratio = 1.0 - ((screenHeight - localY) / _kAutoScrollEdgeZone);
+      _autoScrollSpeed = ratio * _kAutoScrollMaxSpeed;
+      _startAutoScroll();
+    } else {
+      _stopAutoScroll();
+    }
+  }
+
+  void _startAutoScroll() {
+    if (_autoScrollTicker != null && _autoScrollTicker!.isActive) return;
+    _autoScrollTicker = Ticker((elapsed) {
+      if (!_isDragging || _lastFingerPosition == null) {
+        _stopAutoScroll();
+        return;
+      }
+      if (!_scrollController.hasClients) {
+        _stopAutoScroll();
+        return;
+      }
+
+      final newOffset = (_scrollController.offset + _autoScrollSpeed)
+          .clamp(0.0, _scrollController.position.maxScrollExtent);
+      _scrollController.jumpTo(newOffset);
+
+      if (_lastFingerPosition != null && mounted) {
+        final context = this.context;
+        final index = _getGlobalIndexAtPosition(_lastFingerPosition!, context);
+        if (index >= 0 && index < widget.assets.length) {
+          _updateSelectionForRange(index);
+        }
+      }
+    });
+    _autoScrollTicker!.start();
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTicker?.stop();
+    _autoScrollTicker?.dispose();
+    _autoScrollTicker = null;
+    _autoScrollSpeed = 0;
   }
 
   void _toggleMonthCollapse(String monthKey) {
@@ -195,6 +260,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
       _cachedItems = null;
       _lastAssets = null;
     });
+    widget.onCollapsedMonthsChanged?.call(Set<String>.from(_collapsedMonths));
   }
 
   @override
@@ -207,6 +273,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
     }
 
     final items = _buildFlatList(widget.assets);
+    _emitSections(items);
 
     return GestureDetector(
       onLongPressStart: (details) => _onDragStart(details.globalPosition, context),
@@ -245,7 +312,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
                     AnimatedRotation(
                       turns: item.collapsed ? -0.25 : 0.25,
                       duration: const Duration(milliseconds: 200),
-                      child: Icon(
+                      child: const Icon(
                         Icons.chevron_right,
                         color: Colors.white,
                         size: 24,
@@ -262,7 +329,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
           }
 
           final row = item as _RowItem;
-          final spacing = 2.0;
+          const spacing = 2.0;
           return Padding(
             padding: const EdgeInsets.only(left: 2, right: 2, bottom: 2),
             child: Row(
@@ -271,39 +338,36 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
                 for (int i = 0; i < widget.columns; i++)
                   Expanded(
                     child: i < row.assets.length
-                        ? StaggeredAnimation(
-                            index: index * widget.columns + i,
-                            itemCount: items.length * widget.columns,
-                            child: GalleryThumbnail(
-                              asset: row.assets[i],
-                              isSelected:
-                                  widget.selectedAssetIds.contains(row.assets[i].id),
-                              isFavorite:
-                                  widget.favoriteIds.contains(row.assets[i].id),
-                              showSelection: widget.isSelectionMode,
-                              enableHero: false,
-                              onTap: () {
-                                if (widget.isSelectionMode) {
-                                  widget.onToggleSelection
-                                      ?.call(row.assets[i].id);
-                                } else {
-                                  final flatIndex = widget.assets.indexOf(row.assets[i]);
-                                  context.push('/viewer', extra: {
-                                    'assetId': row.assets[i].id,
-                                    'title': row.assets[i].title ?? 'Photo',
-                                    'assetIds': widget.assets.map((a) => a.id).toList(),
-                                    'initialIndex': flatIndex >= 0 ? flatIndex : 0,
-                                  });
-                                }
-                              },
-                              onLongPress: () {
-                                if (!widget.isSelectionMode) {
-                                  widget.onEnterSelectionMode?.call();
-                                  widget.onToggleSelection
-                                      ?.call(row.assets[i].id);
-                                }
-                              },
+                        ? GalleryThumbnail(
+                            asset: row.assets[i],
+                            thumbnailSize: ThumbnailSize(
+                              widget.prefetcher?.cellPixelSize ?? 200,
+                              widget.prefetcher?.cellPixelSize ?? 200,
                             ),
+                            prefetcher: widget.prefetcher,
+                            isSelected: widget.selectedAssetIds
+                                .contains(row.assets[i].id),
+                            isFavorite: widget.favoriteIds
+                                .contains(row.assets[i].id),
+                            showSelection: widget.isSelectionMode,
+                            enableHero: false,
+                            onTap: () {
+                              if (widget.isSelectionMode) {
+                                widget.onToggleSelection
+                                    ?.call(row.assets[i].id);
+                              } else {
+                                final flatIndex =
+                                    widget.assets.indexOf(row.assets[i]);
+                                context.push('/viewer', extra: {
+                                  'assetId': row.assets[i].id,
+                                  'title': row.assets[i].title ?? 'Photo',
+                                  'assetIds':
+                                      widget.assets.map((a) => a.id).toList(),
+                                  'initialIndex':
+                                      flatIndex >= 0 ? flatIndex : 0,
+                                });
+                              }
+                            },
                           )
                         : const SizedBox(height: 1),
                   ),
@@ -315,10 +379,29 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
     );
   }
 
+  void _emitSections(List<_ListItem> items) {
+    if (widget.onSectionsBuilt == null) return;
+    final sections = <MonthSection>[];
+    double yOffset = 0;
+    for (final item in items) {
+      if (item is _HeaderItem) {
+        sections.add(MonthSection(offset: yOffset, label: item.month));
+      }
+      yOffset += item.height;
+    }
+    widget.onSectionsBuilt!(sections);
+  }
+
   List<_ListItem> _buildFlatList(List<AssetEntity> assets) {
     if (_cachedItems != null && identical(_lastAssets, assets)) {
       return _cachedItems!;
     }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    const spacing = 2.0;
+    final cellWidth =
+        (screenWidth - spacing * (widget.columns + 1)) / widget.columns;
+    final rowHeight = cellWidth + 2;
 
     final grouped = <DateTime, List<AssetEntity>>{};
 
@@ -349,6 +432,8 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
         continue;
       }
 
+      monthAssets.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+
       for (int i = 0; i < monthAssets.length; i += widget.columns) {
         final rowAssets = monthAssets.sublist(
           i,
@@ -356,7 +441,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
               ? monthAssets.length
               : i + widget.columns,
         );
-        items.add(_RowItem(rowAssets));
+        items.add(_RowItem(rowAssets, rowHeight: rowHeight));
       }
     }
 
@@ -366,21 +451,31 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
   }
 }
 
-sealed class _ListItem {}
+sealed class _ListItem {
+  double get height;
+}
 
 class _HeaderItem extends _ListItem {
   final String month;
   final String monthKey;
   final bool collapsed;
-  _HeaderItem({required this.month, required this.monthKey, this.collapsed = false});
+  @override
+  double get height => _kHeaderHeight;
+  _HeaderItem(
+      {required this.month, required this.monthKey, this.collapsed = false});
 }
 
 class _CollapsedMonthItem extends _ListItem {
   final String monthKey;
+  @override
+  double get height => 0;
   _CollapsedMonthItem({required this.monthKey});
 }
 
 class _RowItem extends _ListItem {
   final List<AssetEntity> assets;
-  _RowItem(this.assets);
+  final double rowHeight;
+  @override
+  double get height => rowHeight;
+  _RowItem(this.assets, {this.rowHeight = 0});
 }

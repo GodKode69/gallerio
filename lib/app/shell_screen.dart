@@ -57,6 +57,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
       resetAlbumDetail.value++;
       return true;
     }
+    if (ref.read(galleryProvider).isSelectionMode) {
+      ref.read(galleryProvider.notifier).exitSelectionMode();
+      return true;
+    }
     return false;
   }
 

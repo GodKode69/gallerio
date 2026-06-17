@@ -339,6 +339,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                         return GalleryThumbnail(
                           key: ValueKey(asset.id),
                           asset: asset,
+                          thumbnailSize: const ThumbnailSize.square(200),
                           enableHero: true,
                           isSelected: selectedAssetIds.contains(asset.id),
                           showSelection: isSelectionMode,
@@ -352,12 +353,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                                 'assetIds': _albumAssets.map((a) => a.id).toList(),
                                 'initialIndex': index,
                               });
-                            }
-                          },
-                          onLongPress: () {
-                            if (!isSelectionMode) {
-                              ref.read(galleryProvider.notifier).enterSelectionMode();
-                              ref.read(galleryProvider.notifier).toggleSelection(asset.id);
                             }
                           },
                         );

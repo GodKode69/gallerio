@@ -311,6 +311,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               aspectRatio: 1,
                               child: GalleryThumbnail(
                                 asset: row[i],
+                                thumbnailSize: const ThumbnailSize.square(200),
                                 enableHero: true,
                                 onTap: () {
                                   ref
@@ -384,6 +385,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         final asset = results[index];
         return GalleryThumbnail(
           asset: asset,
+          thumbnailSize: const ThumbnailSize.square(200),
           isFavorite: ref.read(galleryProvider).favoriteIds.contains(asset.id),
           enableHero: true,
           onTap: () {
@@ -394,9 +396,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               'assetIds': results.map((a) => a.id).toList(),
               'initialIndex': index,
             });
-          },
-          onLongPress: () {
-            ref.read(galleryProvider.notifier).toggleFavorite(asset.id);
           },
         );
       },
