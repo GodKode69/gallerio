@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -40,7 +41,7 @@ class ViewerScreen extends StatefulWidget {
 }
 
 class _ViewerScreenState extends State<ViewerScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late PageController _pageController;
   late int _currentIndex;
   bool _showControls = true;
@@ -52,6 +53,25 @@ class _ViewerScreenState extends State<ViewerScreen>
   static const _channel = MethodChannel('com.arqora.gallerio/open_file');
 
   bool _isFavorite = false;
+
+  double _imageScale = 1.0;
+  double _baseScale = 1.0;
+  Offset _imageOffset = Offset.zero;
+  final Map<int, Offset> _pointers = {};
+  bool _isScaling = false;
+  double _initialPinchDistance = 0;
+  Offset _pinchFocalBase = Offset.zero;
+  Offset? _pointerDownPosition;
+  bool _isPanning = false;
+
+  late AnimationController _zoomController;
+  Animation<double>? _zoomAnimation;
+
+  static const _zoomLevels = [1.0, 2.0, 3.5];
+  static const _panSlop = 18.0;
+  int _zoomIndex = 0;
+  int _tapCount = 0;
+  Timer? _tapTimer;
 
   bool get _hasSliding => widget.assetIds != null && widget.assetIds!.length > 1;
 
@@ -65,16 +85,33 @@ class _ViewerScreenState extends State<ViewerScreen>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+    _zoomController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _zoomController.addListener(_onZoomTick);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _loadCurrentAsset();
   }
 
   @override
   void dispose() {
+    _tapTimer?.cancel();
+    _zoomController.removeListener(_onZoomTick);
+    _zoomController.dispose();
     _pageController.dispose();
     _fadeController.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
+  }
+
+  void _onZoomTick() {
+    if (_zoomAnimation != null && mounted) {
+      setState(() {
+        _imageScale = _zoomAnimation!.value;
+        _imageOffset = _clampOffset(_imageOffset);
+      });
+    }
   }
 
   Future<void> _loadCurrentAsset() async {
@@ -112,6 +149,145 @@ class _ViewerScreenState extends State<ViewerScreen>
     setState(() => _showControls = !_showControls);
   }
 
+  void _handleTapDown(TapDownDetails details) {
+    _pointerDownPosition = details.localPosition;
+    _isPanning = false;
+    _tapCount++;
+    _tapTimer?.cancel();
+    _tapTimer = Timer(const Duration(milliseconds: 300), _resolveTap);
+  }
+
+  void _resolveTap() {
+    final count = _tapCount;
+    _tapCount = 0;
+    if (count == 1) {
+      _toggleControls();
+    } else if (count == 2) {
+      _doubleTapZoom();
+    } else if (count >= 3) {
+      _tripleTapZoom();
+    }
+  }
+
+  void _doubleTapZoom() {
+    if (_zoomIndex < _zoomLevels.length - 1) {
+      _zoomIndex++;
+    } else {
+      _zoomIndex = 0;
+    }
+    _animateToZoom(_zoomLevels[_zoomIndex]);
+  }
+
+  void _tripleTapZoom() {
+    if (_zoomIndex > 0) {
+      _zoomIndex--;
+      _animateToZoom(_zoomLevels[_zoomIndex]);
+    }
+  }
+
+  void _animateToZoom(double target) {
+    _zoomController.stop();
+    _zoomAnimation = Tween<double>(begin: _imageScale, end: target).animate(
+      CurvedAnimation(parent: _zoomController, curve: Curves.easeOutCubic),
+    );
+    _zoomController.forward(from: 0.0);
+  }
+
+  void _resetZoom() {
+    if (_imageScale == 1.0 && _imageOffset == Offset.zero) return;
+    _zoomController.stop();
+    final startScale = _imageScale;
+    final startOffset = _imageOffset;
+    _zoomAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _zoomController, curve: Curves.easeOutCubic),
+    );
+    void resetListener() {
+      if (mounted) {
+        final t = _zoomAnimation!.value;
+        setState(() {
+          _imageScale = startScale + (1.0 - startScale) * t;
+          _imageOffset = startOffset * (1.0 - t);
+        });
+      }
+    }
+    _zoomController.removeListener(_onZoomTick);
+    _zoomController.addListener(resetListener);
+    _zoomController.forward(from: 0.0).then((_) {
+      _zoomController.removeListener(resetListener);
+      _zoomController.addListener(_onZoomTick);
+      _imageScale = 1.0;
+      _imageOffset = Offset.zero;
+      _zoomIndex = 0;
+      setState(() {});
+    });
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers[event.pointer] = event.position;
+    if (_pointers.length == 2) {
+      _zoomController.stop();
+      _isScaling = true;
+      _baseScale = _imageScale;
+      final pts = _pointers.values.toList();
+      _initialPinchDistance = (pts[0] - pts[1]).distance;
+      _pinchFocalBase = (pts[0] + pts[1]) / 2;
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (!_pointers.containsKey(event.pointer)) return;
+    _pointers[event.pointer] = event.position;
+
+    if (_isScaling && _pointers.length >= 2 && _initialPinchDistance > 0) {
+      final pts = _pointers.values.toList();
+      final currentDist = (pts[0] - pts[1]).distance;
+      final newScale = (_baseScale * currentDist / _initialPinchDistance).clamp(1.0, 4.0);
+      setState(() {
+        _imageScale = newScale;
+        _imageOffset = _clampOffset(_imageOffset);
+      });
+    } else if (_pointers.length == 1 && _imageScale > 1.01) {
+      if (_pointerDownPosition != null) {
+        final dist = (event.localPosition - _pointerDownPosition!).distance;
+        if (dist > _panSlop && !_isPanning) {
+          _isPanning = true;
+          _tapTimer?.cancel();
+        }
+      }
+      setState(() {
+        _imageOffset += event.delta;
+        _imageOffset = _clampOffset(_imageOffset);
+      });
+    }
+  }
+
+  Offset _clampOffset(Offset offset) {
+    final viewSize = MediaQuery.of(context).size;
+    final maxDx = (viewSize.width * (_imageScale - 1)) / 2;
+    final maxDy = (viewSize.height * (_imageScale - 1)) / 2;
+    return Offset(
+      offset.dx.clamp(-maxDx, maxDx),
+      offset.dy.clamp(-maxDy, maxDy),
+    );
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.length < 2) {
+      _isScaling = false;
+    }
+    if (_pointers.isEmpty) {
+      _isPanning = false;
+      _pointerDownPosition = null;
+      if (_imageScale <= 1.01) {
+        _imageScale = 1.0;
+        _imageOffset = Offset.zero;
+        _zoomIndex = 0;
+        setState(() {});
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -119,8 +295,23 @@ class _ViewerScreenState extends State<ViewerScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          _hasSliding ? _buildPageView() : _buildSingleContent(),
-          if (_showControls) _buildOverlay(),
+          Listener(
+            onPointerDown: _onPointerDown,
+            onPointerMove: _onPointerMove,
+            onPointerUp: _onPointerUp,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapDown: _handleTapDown,
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..translate(_imageOffset.dx, _imageOffset.dy)
+                  ..scale(_imageScale),
+                child: _hasSliding ? _buildPageView() : _buildSingleContent(),
+              ),
+            ),
+          ),
+          _buildOverlay(),
         ],
       ),
     );
@@ -129,8 +320,12 @@ class _ViewerScreenState extends State<ViewerScreen>
   Widget _buildPageView() {
     return PageView.builder(
       controller: _pageController,
+      physics: _imageScale > 1.01
+          ? const NeverScrollableScrollPhysics()
+          : null,
       itemCount: widget.assetIds!.length,
       onPageChanged: (index) {
+        _resetZoom();
         setState(() {
           _currentIndex = index;
           _currentAsset = null;
@@ -141,11 +336,6 @@ class _ViewerScreenState extends State<ViewerScreen>
       itemBuilder: (context, index) => _ViewerPage(
         assetId: widget.assetIds![index],
         isCurrentPage: index == _currentIndex,
-        onTap: () {
-          if (!_showControls) {
-            _toggleControls();
-          }
-        },
       ),
     );
   }
@@ -164,52 +354,38 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   Widget _buildSingleContent() {
     if (widget.isVaultItem && widget.filePath != null) {
-      return GestureDetector(
-        onTap: _toggleControls,
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 4.0,
-          child: Center(
-            child: Image.file(
-              File(widget.filePath!),
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return const Icon(
-                  Icons.broken_image,
-                  color: Colors.white24,
-                  size: 64,
-                );
-              },
-            ),
-          ),
+      return Center(
+        child: Image.file(
+          File(widget.filePath!),
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return const Icon(
+              Icons.broken_image,
+              color: Colors.white24,
+              size: 64,
+            );
+          },
         ),
       );
     }
 
     if (_currentAsset != null) {
-      return GestureDetector(
-        onTap: _toggleControls,
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 4.0,
-          child: Center(
-            child: Hero(
-              tag: 'gallery-thumb-${_currentAsset!.id}',
-              child: AssetEntityImage(
-                _currentAsset!,
-                isOriginal: false,
-                thumbnailSize: const ThumbnailSize.square(800),
-                fit: BoxFit.contain,
-                gaplessPlayback: true,
-                errorBuilder: (context, error, stackTrace) {
-                  return const Icon(
-                    Icons.broken_image,
-                    color: Colors.white24,
-                    size: 64,
-                  );
-                },
-              ),
-            ),
+      return Center(
+        child: Hero(
+          tag: 'gallery-thumb-${_currentAsset!.id}',
+          child: AssetEntityImage(
+            _currentAsset!,
+            isOriginal: false,
+            thumbnailSize: const ThumbnailSize.square(800),
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stackTrace) {
+              return const Icon(
+                Icons.broken_image,
+                color: Colors.white24,
+                size: 64,
+              );
+            },
           ),
         ),
       );
@@ -221,27 +397,45 @@ class _ViewerScreenState extends State<ViewerScreen>
   Widget _buildOverlay() {
     return AnimatedOpacity(
       opacity: _showControls ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 200),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black54,
-              Colors.transparent,
-              Colors.transparent,
-              Colors.black54,
-            ],
-            stops: [0, 0.2, 0.8, 1],
+      duration: const Duration(milliseconds: 300),
+      child: IgnorePointer(
+        ignoring: !_showControls,
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black54,
+                Colors.transparent,
+                Colors.transparent,
+                Colors.black54,
+              ],
+              stops: [0, 0.2, 0.8, 1],
+            ),
           ),
-        ),
-        child: SafeArea(
           child: Column(
             children: [
-              _buildTopBar(),
-              const Spacer(),
-              _buildBottomBar(),
+              SafeArea(
+                child: AnimatedSlide(
+                  offset: _showControls ? Offset.zero : const Offset(0, -0.3),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  child: _buildTopBar(),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _toggleControls,
+                ),
+              ),
+              AnimatedSlide(
+                offset: _showControls ? Offset.zero : const Offset(0, 0.5),
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                child: _buildBottomBar(),
+              ),
             ],
           ),
         ),
@@ -566,12 +760,10 @@ class _ViewerScreenState extends State<ViewerScreen>
 class _ViewerPage extends StatefulWidget {
   final String assetId;
   final bool isCurrentPage;
-  final VoidCallback? onTap;
 
   const _ViewerPage({
     required this.assetId,
     required this.isCurrentPage,
-    this.onTap,
   });
 
   @override
@@ -601,7 +793,6 @@ class _ViewerPageState extends State<_ViewerPage>
   }
 
   Future<void> _loadAsset() async {
-    setState(() => _isLoading = true);
     final asset = await AssetEntity.fromId(widget.assetId);
     if (mounted) {
       setState(() {
@@ -633,34 +824,26 @@ class _ViewerPageState extends State<_ViewerPage>
   }
 
   Widget _buildImagePage() {
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
-        child: Center(
-          child: AssetEntityImage(
-            _asset!,
-            isOriginal: false,
-            thumbnailSize: const ThumbnailSize.square(800),
-            fit: BoxFit.contain,
-            gaplessPlayback: true,
-            errorBuilder: (context, error, stackTrace) {
-              return const Icon(
-                Icons.broken_image,
-                color: Colors.white24,
-                size: 64,
-              );
-            },
-          ),
-        ),
+    return Center(
+      child: AssetEntityImage(
+        _asset!,
+        isOriginal: false,
+        thumbnailSize: const ThumbnailSize.square(800),
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(
+            Icons.broken_image,
+            color: Colors.white24,
+            size: 64,
+          );
+        },
       ),
     );
   }
 
   Widget _buildVideoPage() {
-    return GestureDetector(
-      onTap: () => _openInSystemPlayer(),
+    return Center(
       child: Stack(
         fit: StackFit.expand,
         children: [

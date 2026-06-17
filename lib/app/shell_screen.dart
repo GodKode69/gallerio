@@ -60,20 +60,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     return false;
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final location = GoRouterState.of(context).matchedLocation;
-    final idx = _tabs.indexWhere((t) => location.startsWith(t));
-    if (idx >= 0 && idx != _currentIndex) {
-      setState(() {
-        _previousIndex = _currentIndex;
-        _currentIndex = idx;
-      });
-      _pageController.jumpToPage(idx);
-    }
-  }
-
   void _switchTab(int index) {
     if (index == _currentIndex) return;
     setState(() {

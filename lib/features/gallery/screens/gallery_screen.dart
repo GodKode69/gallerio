@@ -43,6 +43,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     final assets = ref.watch(
       galleryProvider.select((s) => s.assets),
     );
+    final favoriteIds = ref.watch(
+      galleryProvider.select((s) => s.favoriteIds),
+    );
 
     final content = Stack(
       children: [
@@ -160,6 +163,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     final showFavoritesOnly = ref.watch(
       galleryProvider.select((s) => s.showFavoritesOnly),
     );
+    final sortOrder = ref.watch(
+      galleryProvider.select((s) => s.sortOrder),
+    );
     final assets = ref.watch(
       galleryProvider.select((s) => s.assets),
     );
@@ -188,23 +194,11 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               tooltip: showFavoritesOnly ? 'Show all' : 'Favorites',
             ),
             IconButton(
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.sort),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
+              icon: Icon(
+                Icons.sort,
+                color: sortOrder != SortOrder.newest
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
               ),
               onPressed: () => SortSheet.show(context),
               tooltip: 'Sort',
