@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../providers/gallery_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../app/shell_screen.dart';
@@ -91,17 +92,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
-          controller: _controller,
-          focusNode: _focusNode,
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Search photos...',
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-            border: InputBorder.none,
+        title: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.chipBackground.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(22),
           ),
-          onChanged: _performSearch,
-          onSubmitted: _onSubmitted,
+          child: TextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Search photos...',
+              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onChanged: _performSearch,
+            onSubmitted: _onSubmitted,
+          ),
         ),
         actions: [
           if (query.isNotEmpty)
@@ -127,11 +137,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 : isLoading && _searchResults.isEmpty
                     ? const ShimmerSearchLoading()
                     : _searchResults.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'No results',
-                              style: TextStyle(color: Colors.white54),
-                            ),
+                        ? const EmptyState(
+                            icon: Icons.search_off,
+                            message: 'No results',
                           )
                         : _buildResultsGrid(_searchResults),
           ),

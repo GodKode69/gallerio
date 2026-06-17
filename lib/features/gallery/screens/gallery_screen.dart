@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/empty_state.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/monthly_gallery.dart';
 import '../widgets/shimmer_loading.dart';
@@ -187,7 +188,24 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               tooltip: showFavoritesOnly ? 'Show all' : 'Favorites',
             ),
             IconButton(
-              icon: const Icon(Icons.sort),
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.sort),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               onPressed: () => SortSheet.show(context),
               tooltip: 'Sort',
             ),
@@ -221,7 +239,12 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
             )
           : isLoading && assets.isEmpty
               ? ShimmerLoading(columns: gridColumns)
-              : _buildBody(context),
+              : assets.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.photo_library_outlined,
+                      message: 'No photos found',
+                    )
+                  : _buildBody(context),
       bottomNavigationBar: const MultiSelectBar(),
     );
   }

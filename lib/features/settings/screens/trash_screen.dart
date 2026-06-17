@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/top_message.dart';
 import '../../../core/trash/trash_service.dart';
 import '../../../core/database/database.dart';
 
@@ -126,11 +127,7 @@ class TrashScreenState extends State<TrashScreen> {
   Future<void> _restore(TrashItem item) async {
     final success = await _trashService.restoreFromTrash(item);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Restored' : 'Failed to restore'),
-        ),
-      );
+      showTopMessage(context, success ? 'Restored' : 'Failed to restore');
       _loadTrash();
     }
   }

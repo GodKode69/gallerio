@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../app/theme.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 
 import '../providers/vault_provider.dart';
@@ -124,7 +125,7 @@ class _VaultSearchDelegate extends SearchDelegate<String> {
       return const Center(
         child: Text(
           'No results',
-          style: TextStyle(color: Colors.white54),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
       );
     }

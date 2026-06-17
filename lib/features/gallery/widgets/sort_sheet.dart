@@ -10,6 +10,7 @@ class SortSheet extends ConsumerWidget {
   static void show(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useRootNavigator: false,
       backgroundColor: AppColors.sheetBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

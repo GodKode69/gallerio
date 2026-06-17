@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
@@ -10,7 +11,9 @@ import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
+import '../../../shared/widgets/top_message.dart';
 import '../../../core/trash/trash_service.dart';
+import '../../gallery/providers/gallery_provider.dart';
 
 class ViewerScreen extends StatefulWidget {
   final String? assetId;
@@ -48,6 +51,8 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   static const _channel = MethodChannel('com.arqora.gallerio/open_file');
 
+  bool _isFavorite = false;
+
   bool get _hasSliding => widget.assetIds != null && widget.assetIds!.length > 1;
 
   @override
@@ -81,12 +86,22 @@ class _ViewerScreenState extends State<ViewerScreen>
     if (widget.assetIds != null && _currentIndex < widget.assetIds!.length) {
       final asset = await AssetEntity.fromId(widget.assetIds![_currentIndex]);
       if (asset != null && mounted) {
-        setState(() => _currentAsset = asset);
+        final favoriteIds = ProviderScope.containerOf(context)
+            .read(galleryProvider.select((s) => s.favoriteIds));
+        setState(() {
+          _currentAsset = asset;
+          _isFavorite = favoriteIds.contains(asset.id);
+        });
       }
     } else if (widget.assetId != null) {
       final asset = await AssetEntity.fromId(widget.assetId!);
       if (asset != null && mounted) {
-        setState(() => _currentAsset = asset);
+        final favoriteIds = ProviderScope.containerOf(context)
+            .read(galleryProvider.select((s) => s.favoriteIds));
+        setState(() {
+          _currentAsset = asset;
+          _isFavorite = favoriteIds.contains(asset.id);
+        });
       }
     }
 
@@ -95,41 +110,6 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   void _toggleControls() {
     setState(() => _showControls = !_showControls);
-  }
-
-  void _showTopMessage(BuildContext context, String message) {
-    final overlay = Overlay.of(context);
-    final entry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 16,
-        left: 48,
-        right: 48,
-        child: Material(
-          color: Colors.transparent,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.sheetBackground,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 2), () {
-      entry.remove();
-    });
   }
 
   @override
@@ -271,9 +251,6 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   Widget _buildTopBar() {
     final displayTitle = _currentTitle.isNotEmpty ? _currentTitle : widget.title;
-    final counter = _hasSliding
-        ? ' ${_currentIndex + 1}/${widget.assetIds!.length}'
-        : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -285,7 +262,7 @@ class _ViewerScreenState extends State<ViewerScreen>
           ),
           Expanded(
             child: Text(
-              '$displayTitle$counter',
+              displayTitle,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -294,6 +271,18 @@ class _ViewerScreenState extends State<ViewerScreen>
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (_hasSliding)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Text(
+                '${_currentIndex + 1}/${widget.assetIds!.length}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -301,32 +290,53 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   Widget _buildBottomBar() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 32),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildBottomActionButton(
-            icon: Icons.info_outline,
-            label: 'Info',
-            onTap: _showInfo,
-          ),
-          _buildBottomActionButton(
-            icon: Icons.share,
-            label: 'Share',
-            onTap: _share,
-          ),
-          if (!widget.isVaultItem)
-            _buildBottomActionButton(
-              icon: Icons.wallpaper,
-              label: 'Wallpaper',
-              onTap: _setAsWallpaper,
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          color: AppColors.chipBackground.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
-          _buildBottomActionButton(
-            icon: Icons.delete_outline,
-            label: 'Delete',
-            onTap: _delete,
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildBottomActionButton(
+              icon: Icons.info_outline,
+              label: 'Info',
+              onTap: _showInfo,
+            ),
+            _buildBottomActionButton(
+              icon: Icons.share,
+              label: 'Share',
+              onTap: _share,
+            ),
+            _buildBottomActionButton(
+              icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
+              label: 'Fav',
+              iconColor: _isFavorite ? AppColors.favoriteRed : null,
+              onTap: _toggleFavorite,
+            ),
+            if (!widget.isVaultItem)
+              _buildBottomActionButton(
+                icon: Icons.wallpaper,
+                label: 'Wallpaper',
+                onTap: _setAsWallpaper,
+              ),
+            _buildBottomActionButton(
+              icon: Icons.delete_outline,
+              label: 'Delete',
+              iconColor: AppColors.favoriteRed,
+              onTap: _delete,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -335,32 +345,35 @@ class _ViewerScreenState extends State<ViewerScreen>
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    Color? iconColor,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-          const SizedBox(height: 6),
+          Icon(icon, color: iconColor ?? Colors.white, size: 22),
+          const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.8),
-              fontSize: 11,
+              color: iconColor ?? Colors.white.withValues(alpha: 0.8),
+              fontSize: 10,
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_currentAsset != null) {
+      final galleryRef = ProviderScope.containerOf(context).read(galleryProvider.notifier);
+      await galleryRef.toggleFavorite(_currentAsset!.id);
+      setState(() {
+        _isFavorite = !_isFavorite;
+      });
+    }
   }
 
   Future<void> _share() async {
@@ -438,7 +451,7 @@ class _ViewerScreenState extends State<ViewerScreen>
             } else {
               context.pop();
             }
-            _showTopMessage(context, 'Trashed');
+            showTopMessage(context, 'Moved to trash');
           } else if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
