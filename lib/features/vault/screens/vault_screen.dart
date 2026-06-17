@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/confirm_delete_dialog.dart';
 
 import '../providers/vault_provider.dart';
 import '../widgets/vault_grid.dart';
@@ -56,29 +57,10 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
                 }
               },
               onDelete: (item) async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    insetPadding: const EdgeInsets.symmetric(horizontal: 40),
-                    title: Row(
-                      children: [
-                        const Text('Remove from vault?'),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Remove',
-                              style: TextStyle(color: Colors.red)),
-                        ),
-                      ],
-                    ),
-                  ),
+                final confirmed = await ConfirmDeleteDialog.show(
+                  context,
+                  title: 'Remove from vault?',
+                  confirmLabel: 'Remove',
                 );
                 if (confirmed == true) {
                   await ref

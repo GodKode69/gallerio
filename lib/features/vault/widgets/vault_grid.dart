@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../core/database/database.dart';
 
 class VaultGrid extends StatelessWidget {
@@ -87,31 +88,12 @@ class _VaultItemTile extends StatelessWidget {
       onTap: onTap,
       onLongPress: onDelete != null
           ? () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  insetPadding: const EdgeInsets.symmetric(horizontal: 40),
-                  title: Row(
-                    children: [
-                      const Text('Remove from vault?'),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Remove',
-                            style: TextStyle(color: Colors.red)),
-                      ),
-                    ],
-                  ),
-                ),
+              final confirmed = await ConfirmDeleteDialog.show(
+                context,
+                title: 'Remove from vault?',
+                confirmLabel: 'Remove',
               );
-              if (confirmed == true) {
+              if (confirmed) {
                 onDelete?.call();
               }
             }

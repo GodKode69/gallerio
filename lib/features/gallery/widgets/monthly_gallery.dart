@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/empty_state.dart';
 import 'gallery_thumbnail.dart';
 import 'staggered_animation.dart';
 
@@ -209,18 +210,9 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
   @override
   Widget build(BuildContext context) {
     if (widget.assets.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.photo_library_outlined, size: 64, color: Colors.white24),
-            SizedBox(height: 16),
-            Text(
-              'No photos found',
-              style: TextStyle(color: Colors.white54, fontSize: 16),
-            ),
-          ],
-        ),
+      return const EmptyState(
+        icon: Icons.photo_library_outlined,
+        message: 'No photos found',
       );
     }
 

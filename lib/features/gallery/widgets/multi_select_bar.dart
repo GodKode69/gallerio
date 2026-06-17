@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../app/theme.dart';
+import '../../../shared/utils/vault_utils.dart';
+import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../providers/gallery_provider.dart';
 import '../../../core/database/database.dart';
 import '../../../core/trash/trash_service.dart';
@@ -10,7 +12,6 @@ import 'package:drift/drift.dart' as drift;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
-import 'dart:math';
 
 class MultiSelectBar extends ConsumerWidget {
   const MultiSelectBar({super.key});
@@ -107,28 +108,9 @@ class MultiSelectBar extends ConsumerWidget {
   }
 
   Future<void> _deleteSelected(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
-        title: Row(
-          children: [
-            const Text('Delete Items?'),
-            const Spacer(),
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      ),
+    final confirmed = await ConfirmDeleteDialog.show(
+      context,
+      title: 'Delete Items?',
     );
 
     if (confirmed == true) {
@@ -158,9 +140,7 @@ class MultiSelectBar extends ConsumerWidget {
         final file = await asset.file;
         if (file == null) continue;
 
-        final random = Random.secure();
-        final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-        final vaultName = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+        final vaultName = generateVaultName();
         final ext = p.extension(file.path);
         final vaultPath = p.join(vaultDir.path, '$vaultName$ext');
 

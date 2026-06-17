@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import '../../../app/theme.dart';
+import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
 import '../providers/vault_provider.dart';
 
 class VaultImportButton extends ConsumerWidget {
@@ -29,15 +30,7 @@ class VaultImportButton extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: AppColors.iconOverlay,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+            const BottomSheetDragHandle(),
             const SizedBox(height: 20),
             ListTile(
               leading: const Icon(Icons.photo_library, color: AppColors.textMuted),
