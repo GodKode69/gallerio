@@ -6,6 +6,7 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/shell_screen.dart';
 import '../../../app/theme.dart';
+import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/staggered_animation.dart';
@@ -27,6 +28,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   bool _isDragging = false;
   final Set<String> _dragSelectedIds = {};
   String? _lastDraggedAssetId;
+  ThumbnailPrefetcher? _albumPrefetcher;
+  final ScrollController _albumScrollController = ScrollController();
 
   @override
   void initState() {
@@ -37,11 +40,16 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   @override
   void dispose() {
     resetAlbumDetail.removeListener(_onResetAlbumDetail);
+    _albumPrefetcher?.dispose();
+    _albumScrollController.dispose();
     super.dispose();
   }
 
   void _onResetAlbumDetail() {
     if (_selectedAlbum != null) {
+      _albumScrollController.removeListener(_pushAlbumVisibleIds);
+      _albumPrefetcher?.dispose();
+      _albumPrefetcher = null;
       setState(() {
         _selectedAlbum = null;
         _albumAssets = [];
@@ -59,9 +67,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     );
     final isLoading = ref.watch(
       galleryProvider.select((s) => s.isLoading),
-    );
-    final favoriteIds = ref.watch(
-      galleryProvider.select((s) => s.favoriteIds),
     );
 
     if (!hasPermission) {
@@ -83,17 +88,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Albums'),
-        actions: [
-          if (favoriteIds.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.favorite, color: AppColors.favoriteRed),
-              onPressed: () {
-                ref.read(galleryProvider.notifier).setShowFavoritesOnly(true);
-                context.go('/search');
-              },
-              tooltip: 'Favorites',
-            ),
-        ],
       ),
       body: albums.isEmpty
           ? isLoading
@@ -138,11 +132,28 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
 
     try {
       final assets = await album.getAssetListPaged(page: 0, size: 200);
+      final sorted = assets.toList()
+        ..sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+
+      final screenWidth = MediaQuery.of(context).size.width;
+      final dpr = MediaQuery.of(context).devicePixelRatio;
+      final gridColumns = ref.read(galleryProvider).gridColumns;
+      const spacing = 2.0;
+      final cellWidth = (screenWidth - spacing * (gridColumns + 1)) / gridColumns;
+      final cellPx = (cellWidth * dpr).round();
+
+      _albumPrefetcher?.dispose();
+      _albumScrollController.removeListener(_pushAlbumVisibleIds);
+      _albumPrefetcher = ThumbnailPrefetcher(cellPixelSize: cellPx);
+      _albumPrefetcher!.updateAssets(sorted);
+      _albumScrollController.addListener(_pushAlbumVisibleIds);
+
       setState(() {
-        _albumAssets = assets.toList()
-          ..sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+        _albumAssets = sorted;
         _isLoadingAlbum = false;
       });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) => _pushAlbumVisibleIds());
     } catch (e) {
       setState(() {
         _isLoadingAlbum = false;
@@ -150,6 +161,28 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       });
       ref.read(isAlbumDetailProvider.notifier).state = false;
     }
+  }
+
+  void _pushAlbumVisibleIds() {
+    if (_albumPrefetcher == null || !_albumScrollController.hasClients) return;
+    final offset = _albumScrollController.offset;
+    final viewportHeight = MediaQuery.of(context).size.height;
+    final gridColumns = ref.read(galleryProvider).gridColumns;
+
+    final visibleIds = <String>{};
+    final cellHeight = viewportHeight / gridColumns;
+    final firstRow = (offset / cellHeight).floor();
+    final lastRow = ((offset + viewportHeight) / cellHeight).ceil();
+
+    for (int row = firstRow; row <= lastRow; row++) {
+      for (int col = 0; col < gridColumns; col++) {
+        final idx = row * gridColumns + col;
+        if (idx >= 0 && idx < _albumAssets.length) {
+          visibleIds.add(_albumAssets[idx].id);
+        }
+      }
+    }
+    _albumPrefetcher!.updateVisibleIds(visibleIds);
   }
 
   void _onDragStart(Offset globalPosition, BuildContext context) {
@@ -247,6 +280,9 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             ref.read(isAlbumDetailProvider.notifier).state = false;
+            _albumScrollController.removeListener(_pushAlbumVisibleIds);
+            _albumPrefetcher?.dispose();
+            _albumPrefetcher = null;
             setState(() {
               _selectedAlbum = null;
               _albumAssets = [];
@@ -320,6 +356,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                     onLongPressMoveUpdate: (details) => _onDragUpdate(details.globalPosition, context),
                     onLongPressEnd: (_) => _onDragEnd(),
                     child: GridView.builder(
+                      controller: _albumScrollController,
                       padding: const EdgeInsets.all(2),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: gridColumns,
@@ -339,7 +376,11 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                         return GalleryThumbnail(
                           key: ValueKey(asset.id),
                           asset: asset,
-                          thumbnailSize: const ThumbnailSize.square(200),
+                          thumbnailSize: ThumbnailSize(
+                            _albumPrefetcher?.cellPixelSize ?? 200,
+                            _albumPrefetcher?.cellPixelSize ?? 200,
+                          ),
+                          prefetcher: _albumPrefetcher,
                           enableHero: true,
                           isSelected: selectedAssetIds.contains(asset.id),
                           showSelection: isSelectionMode,
