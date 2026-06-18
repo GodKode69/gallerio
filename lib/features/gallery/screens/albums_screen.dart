@@ -10,7 +10,7 @@ import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/staggered_animation.dart';
-import '../widgets/gallery_thumbnail.dart';
+import '../widgets/monthly_gallery.dart';
 
 class AlbumsScreen extends ConsumerStatefulWidget {
   const AlbumsScreen({super.key});
@@ -25,11 +25,9 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   bool _isLoadingAlbum = false;
   double _scaleStart = 1.0;
   final Map<int, Offset> _pointers = {};
-  bool _isDragging = false;
-  final Set<String> _dragSelectedIds = {};
-  String? _lastDraggedAssetId;
   ThumbnailPrefetcher? _albumPrefetcher;
-  final ScrollController _albumScrollController = ScrollController();
+  String _albumTypeFilter = 'all';
+  final Set<String> _albumCollapsedMonths = {};
 
   @override
   void initState() {
@@ -41,19 +39,30 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   void dispose() {
     resetAlbumDetail.removeListener(_onResetAlbumDetail);
     _albumPrefetcher?.dispose();
-    _albumScrollController.dispose();
     super.dispose();
   }
 
   void _onResetAlbumDetail() {
     if (_selectedAlbum != null) {
-      _albumScrollController.removeListener(_pushAlbumVisibleIds);
       _albumPrefetcher?.dispose();
       _albumPrefetcher = null;
       setState(() {
         _selectedAlbum = null;
         _albumAssets = [];
+        _albumTypeFilter = 'all';
+        _albumCollapsedMonths.clear();
       });
+    }
+  }
+
+  List<AssetEntity> get _filteredAlbumAssets {
+    switch (_albumTypeFilter) {
+      case 'photos':
+        return _albumAssets.where((a) => a.type == AssetType.image).toList();
+      case 'videos':
+        return _albumAssets.where((a) => a.type == AssetType.video).toList();
+      default:
+        return _albumAssets;
     }
   }
 
@@ -99,7 +108,12 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                   ),
                 )
           : GridView.builder(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.fromLTRB(
+                12,
+                12,
+                12,
+                12 + MediaQuery.of(context).viewPadding.bottom + 68,
+              ),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 12,
@@ -115,6 +129,12 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                   child: AlbumCard(
                     key: ValueKey(album.id),
                     album: album,
+                    displayName: ref
+                        .read(galleryProvider)
+                        .getAlbumDisplayName(album),
+                    sourceAlbums: ref
+                        .read(galleryProvider)
+                        .mergedAlbumSources[album.id] ?? [],
                     onTap: () => _openAlbum(album),
                   ),
                 );
@@ -127,13 +147,12 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     setState(() {
       _isLoadingAlbum = true;
       _selectedAlbum = album;
+      _albumCollapsedMonths.clear();
     });
     ref.read(isAlbumDetailProvider.notifier).state = true;
 
     try {
-      final assets = await album.getAssetListPaged(page: 0, size: 200);
-      final sorted = assets.toList()
-        ..sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+      final sorted = await ref.read(galleryProvider.notifier).loadMergedAssets(album);
 
       final screenWidth = MediaQuery.of(context).size.width;
       final dpr = MediaQuery.of(context).devicePixelRatio;
@@ -143,17 +162,13 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       final cellPx = (cellWidth * dpr).round();
 
       _albumPrefetcher?.dispose();
-      _albumScrollController.removeListener(_pushAlbumVisibleIds);
       _albumPrefetcher = ThumbnailPrefetcher(cellPixelSize: cellPx);
       _albumPrefetcher!.updateAssets(sorted);
-      _albumScrollController.addListener(_pushAlbumVisibleIds);
 
       setState(() {
         _albumAssets = sorted;
         _isLoadingAlbum = false;
       });
-
-      WidgetsBinding.instance.addPostFrameCallback((_) => _pushAlbumVisibleIds());
     } catch (e) {
       setState(() {
         _isLoadingAlbum = false;
@@ -163,109 +178,54 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     }
   }
 
-  void _pushAlbumVisibleIds() {
-    if (_albumPrefetcher == null || !_albumScrollController.hasClients) return;
-    final offset = _albumScrollController.offset;
-    final viewportHeight = MediaQuery.of(context).size.height;
-    final gridColumns = ref.read(galleryProvider).gridColumns;
-
-    final visibleIds = <String>{};
-    final cellHeight = viewportHeight / gridColumns;
-    final firstRow = (offset / cellHeight).floor();
-    final lastRow = ((offset + viewportHeight) / cellHeight).ceil();
-
-    for (int row = firstRow; row <= lastRow; row++) {
-      for (int col = 0; col < gridColumns; col++) {
-        final idx = row * gridColumns + col;
-        if (idx >= 0 && idx < _albumAssets.length) {
-          visibleIds.add(_albumAssets[idx].id);
-        }
-      }
-    }
-    _albumPrefetcher!.updateVisibleIds(visibleIds);
+  Widget _buildAlbumTypeFilterChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          _buildAlbumFilterChip('Photos', 'photos'),
+          const SizedBox(width: 8),
+          _buildAlbumFilterChip('Videos', 'videos'),
+        ],
+      ),
+    );
   }
 
-  void _onDragStart(Offset globalPosition, BuildContext context) {
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-
-    final localPosition = renderBox.globalToLocal(globalPosition);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final cellSize = screenWidth / ref.read(galleryProvider).gridColumns;
-
-    final colIndex = (localPosition.dx / cellSize).floor();
-    final rowIndex = (localPosition.dy / cellSize).floor();
-    final flatIndex = rowIndex * ref.read(galleryProvider).gridColumns + colIndex;
-
-    if (flatIndex >= 0 && flatIndex < _albumAssets.length) {
-      _isDragging = true;
-      _dragSelectedIds.clear();
-      _dragSelectedIds.add(_albumAssets[flatIndex].id);
-      _lastDraggedAssetId = _albumAssets[flatIndex].id;
-      ref.read(galleryProvider.notifier).enterSelectionMode();
-      ref.read(galleryProvider.notifier).toggleSelection(_albumAssets[flatIndex].id);
-    }
-  }
-
-  void _onDragUpdate(Offset globalPosition, BuildContext context) {
-    if (!_isDragging) return;
-
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-
-    final localPosition = renderBox.globalToLocal(globalPosition);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final cellSize = screenWidth / ref.read(galleryProvider).gridColumns;
-
-    final colIndex = (localPosition.dx / cellSize).floor();
-    final rowIndex = (localPosition.dy / cellSize).floor();
-    final flatIndex = rowIndex * ref.read(galleryProvider).gridColumns + colIndex;
-
-    if (flatIndex >= 0 && flatIndex < _albumAssets.length) {
-      final assetId = _albumAssets[flatIndex].id;
-      if (assetId != _lastDraggedAssetId) {
-        _lastDraggedAssetId = assetId;
-
-        final newDragIds = <String>{assetId};
-        if (_dragSelectedIds.isNotEmpty) {
-          final lastId = _dragSelectedIds.last;
-          final lastIndex = _albumAssets.indexWhere((a) => a.id == lastId);
-          final currentIndex = _albumAssets.indexWhere((a) => a.id == assetId);
-
-          if (lastIndex >= 0 && currentIndex >= 0) {
-            final start = lastIndex < currentIndex ? lastIndex : currentIndex;
-            final end = lastIndex < currentIndex ? currentIndex : lastIndex;
-            for (int i = start; i <= end; i++) {
-              newDragIds.add(_albumAssets[i].id);
-            }
-          }
-        }
-
-        final toSelect = newDragIds.difference(_dragSelectedIds);
-        final toDeselect = _dragSelectedIds.difference(newDragIds);
-
-        _dragSelectedIds
-          ..clear()
-          ..addAll(newDragIds);
-
-        for (final id in toSelect) {
-          if (!ref.read(galleryProvider).selectedAssetIds.contains(id)) {
-            ref.read(galleryProvider.notifier).toggleSelection(id);
-          }
-        }
-        for (final id in toDeselect) {
-          if (ref.read(galleryProvider).selectedAssetIds.contains(id)) {
-            ref.read(galleryProvider.notifier).toggleSelection(id);
-          }
-        }
-      }
-    }
-  }
-
-  void _onDragEnd() {
-    _isDragging = false;
-    _dragSelectedIds.clear();
-    _lastDraggedAssetId = null;
+  Widget _buildAlbumFilterChip(String label, String value) {
+    final isSelected = _albumTypeFilter == value;
+    final colorScheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: () {
+        final newFilter = isSelected ? 'all' : value;
+        setState(() => _albumTypeFilter = newFilter);
+        final filtered = _filteredAlbumAssets;
+        _albumPrefetcher?.updateAssets(filtered);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.black : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.primary.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.primary.withValues(alpha: 0.7),
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildAlbumView() {
@@ -275,143 +235,126 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedAlbum?.name ?? 'Album'),
+        title: Text(
+          _selectedAlbum != null
+              ? ref.read(galleryProvider).getAlbumDisplayName(_selectedAlbum!)
+              : 'Album',
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             ref.read(isAlbumDetailProvider.notifier).state = false;
-            _albumScrollController.removeListener(_pushAlbumVisibleIds);
             _albumPrefetcher?.dispose();
             _albumPrefetcher = null;
             setState(() {
               _selectedAlbum = null;
               _albumAssets = [];
+              _albumCollapsedMonths.clear();
             });
           },
         ),
         actions: [],
       ),
-      body: _isLoadingAlbum
-          ? const Center(child: CircularProgressIndicator())
-          : _albumAssets.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No photos in this album',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                )
-              : Listener(
-                  onPointerDown: (event) {
-                    _pointers[event.pointer] = event.position;
-                    if (_pointers.length == 2) {
-                      ref.read(isPinchingProvider.notifier).state = true;
-                      final pts = _pointers.values.toList();
-                      _scaleStart = (pts[0] - pts[1]).distance;
-                    }
-                  },
-                  onPointerMove: (event) {
-                    _pointers[event.pointer] = event.position;
-                    if (_pointers.length == 2) {
-                      final pts = _pointers.values.toList();
-                      final currentDist = (pts[0] - pts[1]).distance;
-                      if (_scaleStart > 0) {
-                        final scale = currentDist / _scaleStart;
-                        final notifier = ref.read(galleryProvider.notifier);
-                        final current = ref.read(galleryProvider).gridColumns;
-
-                        if (scale > 1.225) {
-                          final newColumns = current - 1;
-                          if (newColumns >= 3 && newColumns != current) {
-                            HapticFeedback.lightImpact();
-                            notifier.setGridColumns(newColumns);
-                            _scaleStart = currentDist;
+      body: Column(
+        children: [
+          _buildAlbumTypeFilterChips(),
+          Expanded(
+            child: _isLoadingAlbum
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredAlbumAssets.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No photos in this album',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    : Listener(
+                        onPointerDown: (event) {
+                          _pointers[event.pointer] = event.position;
+                          if (_pointers.length == 2) {
+                            ref.read(isPinchingProvider.notifier).state = true;
+                            final pts = _pointers.values.toList();
+                            _scaleStart = (pts[0] - pts[1]).distance;
                           }
-                        } else if (scale < 0.775) {
-                          final newColumns = current + 1;
-                          if (newColumns <= 6 && newColumns != current) {
-                            HapticFeedback.lightImpact();
-                            notifier.setGridColumns(newColumns);
-                            _scaleStart = currentDist;
-                          }
-                        }
-                      }
-                    }
-                  },
-                  onPointerUp: (event) {
-                    _pointers.remove(event.pointer);
-                    if (_pointers.length < 2) {
-                      _scaleStart = 0;
-                      ref.read(isPinchingProvider.notifier).state = false;
-                    }
-                  },
-                  onPointerCancel: (event) {
-                    _pointers.remove(event.pointer);
-                    if (_pointers.length < 2) {
-                      _scaleStart = 0;
-                      ref.read(isPinchingProvider.notifier).state = false;
-                    }
-                  },
-                  child: GestureDetector(
-                    onLongPressStart: (details) => _onDragStart(details.globalPosition, context),
-                    onLongPressMoveUpdate: (details) => _onDragUpdate(details.globalPosition, context),
-                    onLongPressEnd: (_) => _onDragEnd(),
-                    child: GridView.builder(
-                      controller: _albumScrollController,
-                      padding: const EdgeInsets.all(2),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: gridColumns,
-                        mainAxisSpacing: 2,
-                        crossAxisSpacing: 2,
-                      ),
-                      itemCount: _albumAssets.length,
-                      itemBuilder: (context, index) {
-                        final asset = _albumAssets[index];
-                        final isSelectionMode = ref.watch(
-                          galleryProvider.select((s) => s.isSelectionMode),
-                        );
-                        final selectedAssetIds = ref.watch(
-                          galleryProvider.select((s) => s.selectedAssetIds),
-                        );
+                        },
+                        onPointerMove: (event) {
+                          _pointers[event.pointer] = event.position;
+                          if (_pointers.length == 2) {
+                            final pts = _pointers.values.toList();
+                            final currentDist = (pts[0] - pts[1]).distance;
+                            if (_scaleStart > 0) {
+                              final scale = currentDist / _scaleStart;
+                              final notifier = ref.read(galleryProvider.notifier);
+                              final current = ref.read(galleryProvider).gridColumns;
 
-                        return GalleryThumbnail(
-                          key: ValueKey(asset.id),
-                          asset: asset,
-                          thumbnailSize: ThumbnailSize(
-                            _albumPrefetcher?.cellPixelSize ?? 200,
-                            _albumPrefetcher?.cellPixelSize ?? 200,
-                          ),
-                          prefetcher: _albumPrefetcher,
-                          enableHero: true,
-                          isSelected: selectedAssetIds.contains(asset.id),
-                          showSelection: isSelectionMode,
-                          onTap: () {
-                            if (isSelectionMode) {
-                              ref.read(galleryProvider.notifier).toggleSelection(asset.id);
-                            } else {
-                              context.push('/viewer', extra: {
-                                'assetId': asset.id,
-                                'title': asset.title ?? 'Photo',
-                                'assetIds': _albumAssets.map((a) => a.id).toList(),
-                                'initialIndex': index,
-                              });
+                              if (scale > 1.225) {
+                                final newColumns = current - 1;
+                                if (newColumns >= 3 && newColumns != current) {
+                                  HapticFeedback.lightImpact();
+                                  notifier.setGridColumns(newColumns);
+                                  _scaleStart = currentDist;
+                                }
+                              } else if (scale < 0.775) {
+                                final newColumns = current + 1;
+                                if (newColumns <= 6 && newColumns != current) {
+                                  HapticFeedback.lightImpact();
+                                  notifier.setGridColumns(newColumns);
+                                  _scaleStart = currentDist;
+                                }
+                              }
                             }
+                          }
+                        },
+                        onPointerUp: (event) {
+                          _pointers.remove(event.pointer);
+                          if (_pointers.length < 2) {
+                            _scaleStart = 0;
+                            ref.read(isPinchingProvider.notifier).state = false;
+                          }
+                        },
+                        onPointerCancel: (event) {
+                          _pointers.remove(event.pointer);
+                          if (_pointers.length < 2) {
+                            _scaleStart = 0;
+                            ref.read(isPinchingProvider.notifier).state = false;
+                          }
+                        },
+                        child: MonthlyGallery(
+                          assets: _filteredAlbumAssets,
+                          columns: gridColumns,
+                          collapsedMonths: _albumCollapsedMonths,
+                          onCollapsedMonthsChanged: (months) {
+                            setState(() => _albumCollapsedMonths
+                              ..clear()
+                              ..addAll(months));
                           },
-                        );
-                      },
-                    ),
-                  ),
-                ),
+                          prefetcher: _albumPrefetcher,
+                          onToggleSelection: (id) =>
+                              ref.read(galleryProvider.notifier).toggleSelection(id),
+                          onSetSelection: (ids) =>
+                              ref.read(galleryProvider.notifier).setSelection(ids),
+                          onEnterSelectionMode: () =>
+                              ref.read(galleryProvider.notifier).enterSelectionMode(),
+                        ),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class AlbumCard extends StatefulWidget {
   final AssetPathEntity album;
+  final String displayName;
+  final List<AssetPathEntity> sourceAlbums;
   final VoidCallback onTap;
 
   const AlbumCard({
     super.key,
     required this.album,
+    required this.displayName,
+    this.sourceAlbums = const [],
     required this.onTap,
   });
 
@@ -426,8 +369,30 @@ class _AlbumCardState extends State<AlbumCard> {
   @override
   void initState() {
     super.initState();
-    _thumbnailFuture = widget.album.getAssetListPaged(page: 0, size: 4);
-    _countFuture = widget.album.assetCountAsync;
+    if (widget.sourceAlbums.isNotEmpty) {
+      _thumbnailFuture = _loadMergedThumbnails();
+      _countFuture = _loadMergedCount();
+    } else {
+      _thumbnailFuture = widget.album.getAssetListPaged(page: 0, size: 4);
+      _countFuture = widget.album.assetCountAsync;
+    }
+  }
+
+  Future<List<AssetEntity>> _loadMergedThumbnails() async {
+    final futures = widget.sourceAlbums.map((src) async {
+      return src.getAssetListPaged(page: 0, size: 4);
+    });
+    final results = await Future.wait(futures);
+    final allAssets = results.expand((list) => list).toList();
+    allAssets.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    return allAssets.take(4).toList();
+  }
+
+  Future<int> _loadMergedCount() async {
+    final results = await Future.wait(
+      widget.sourceAlbums.map((src) => src.assetCountAsync),
+    );
+    return results.fold<int>(0, (sum, c) => sum + c);
   }
 
   @override
@@ -449,7 +414,7 @@ class _AlbumCardState extends State<AlbumCard> {
           ),
           const SizedBox(height: 8),
           Text(
-            widget.album.name,
+            widget.displayName,
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 13,

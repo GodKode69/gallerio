@@ -203,8 +203,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          _buildChip('All', 'all'),
-          const SizedBox(width: 8),
           _buildChip('Photos', 'photos'),
           const SizedBox(width: 8),
           _buildChip('Videos', 'videos'),
@@ -230,24 +228,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: _showFavoritesOnly
-              ? AppColors.favoriteRed.withValues(alpha: 0.8)
-              : AppColors.textPrimary.withValues(alpha: 0.08),
+          color: _showFavoritesOnly ? Colors.black : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _showFavoritesOnly
+                ? AppColors.favoriteRed
+                : AppColors.favoriteRed.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               _showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
-              color: AppColors.textPrimary,
+              color: AppColors.favoriteRed,
               size: 16,
             ),
             const SizedBox(width: 4),
             Text(
               'Favorites',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: _showFavoritesOnly
+                    ? AppColors.favoriteRed
+                    : AppColors.favoriteRed.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontWeight: _showFavoritesOnly
                     ? FontWeight.w600
@@ -266,7 +270,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return GestureDetector(
       onTap: () {
-        setState(() => _selectedFilter = value);
+        setState(() => _selectedFilter = isSelected ? 'all' : value);
         if (_controller.text.isNotEmpty) {
           _performSearch(_controller.text);
         }
@@ -275,15 +279,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected
-              ? colorScheme.primary
-              : Colors.white.withValues(alpha: 0.08),
+          color: isSelected ? Colors.black : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.primary.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : AppColors.textSecondary,
+            color: isSelected ? colorScheme.primary : colorScheme.primary.withValues(alpha: 0.7),
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
           ),

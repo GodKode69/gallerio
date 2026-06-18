@@ -27,6 +27,10 @@ class GalleryState {
 
   final SortOrder sortOrder;
 
+  final Map<String, String> albumDisplayNames;
+  final Map<String, List<AssetPathEntity>> mergedAlbumSources;
+  final List<AssetPathEntity> allDeviceAlbums;
+
   const GalleryState({
     this.albums = const [],
     this.assets = const [],
@@ -42,6 +46,9 @@ class GalleryState {
     this.favoriteIds = const {},
     this.showFavoritesOnly = false,
     this.sortOrder = SortOrder.newest,
+    this.albumDisplayNames = const {},
+    this.mergedAlbumSources = const {},
+    this.allDeviceAlbums = const [],
   });
 
   GalleryState copyWith({
@@ -59,6 +66,9 @@ class GalleryState {
     Set<String>? favoriteIds,
     bool? showFavoritesOnly,
     SortOrder? sortOrder,
+    Map<String, String>? albumDisplayNames,
+    Map<String, List<AssetPathEntity>>? mergedAlbumSources,
+    List<AssetPathEntity>? allDeviceAlbums,
   }) {
     return GalleryState(
       albums: albums ?? this.albums,
@@ -75,6 +85,9 @@ class GalleryState {
       favoriteIds: favoriteIds ?? this.favoriteIds,
       showFavoritesOnly: showFavoritesOnly ?? this.showFavoritesOnly,
       sortOrder: sortOrder ?? this.sortOrder,
+      albumDisplayNames: albumDisplayNames ?? this.albumDisplayNames,
+      mergedAlbumSources: mergedAlbumSources ?? this.mergedAlbumSources,
+      allDeviceAlbums: allDeviceAlbums ?? this.allDeviceAlbums,
     );
   }
 
@@ -88,6 +101,10 @@ class GalleryState {
   int get selectedCount => selectedAssetIds.length;
 
   bool isSelected(String id) => selectedAssetIds.contains(id);
+
+  String getAlbumDisplayName(AssetPathEntity album) {
+    return albumDisplayNames[album.id] ?? album.name;
+  }
 }
 
 class GalleryNotifier extends StateNotifier<GalleryState> {
@@ -129,33 +146,150 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _loadAlbums() async {
     try {
-      final albums = await PhotoManager.getAssetPathList(
+      final rawAlbums = await PhotoManager.getAssetPathList(
         type: RequestType.common,
       );
 
-      if (albums.isEmpty) {
+      if (rawAlbums.isEmpty) {
         state = state.copyWith(albums: [], isLoading: false);
         return;
       }
 
-      state = state.copyWith(albums: albums, currentAlbum: albums.first);
-      await _loadAssets(albums.first, reset: true);
+      final displayNames = <String, String>{};
+      final mergedSources = <String, List<AssetPathEntity>>{};
+
+      final whatsappAlbums = rawAlbums
+          .where((a) => a.name.toLowerCase().contains('whatsapp'))
+          .toList();
+      if (whatsappAlbums.isNotEmpty) {
+        displayNames[whatsappAlbums.first.id] = 'WhatsApp';
+        if (whatsappAlbums.length > 1) {
+          mergedSources[whatsappAlbums.first.id] = whatsappAlbums;
+        }
+      }
+
+      final albums = rawAlbums.where((a) {
+        final name = a.name.toLowerCase();
+        if (name.contains('recent')) return false;
+        if (whatsappAlbums.contains(a) &&
+            a.id != whatsappAlbums.first.id) return false;
+        return true;
+      }).toList();
+
+      albums.sort((a, b) {
+        final aName = a.name.toLowerCase();
+        final bName = b.name.toLowerCase();
+        if (aName == 'camera') return -1;
+        if (bName == 'camera') return 1;
+        if (aName.contains('screenshot')) return -1;
+        if (bName.contains('screenshot')) return 1;
+        return 0;
+      });
+
+      state = state.copyWith(
+        albums: albums,
+        albumDisplayNames: displayNames,
+        mergedAlbumSources: mergedSources,
+        allDeviceAlbums: rawAlbums,
+        currentAlbum: albums.first,
+      );
+      await _loadAllAssets(rawAlbums);
     } catch (e) {
       state = state.copyWith(error: 'Failed to load albums', isLoading: false);
     }
   }
 
+  Future<void> _loadAllAssets(List<AssetPathEntity> sourceAlbums) async {
+    try {
+      if (sourceAlbums.isEmpty) {
+        state = state.copyWith(assets: [], isLoading: false);
+        return;
+      }
+
+      final futures = sourceAlbums.map((album) async {
+        final count = await album.assetCountAsync;
+        if (count == 0) return <AssetEntity>[];
+        return (await album.getAssetListRange(start: 0, end: count)).toList();
+      });
+
+      final results = await Future.wait(futures);
+      final seenIds = <String>{};
+      final allAssets = <AssetEntity>[];
+      for (final list in results) {
+        for (final asset in list) {
+          if (seenIds.add(asset.id)) {
+            allAssets.add(asset);
+          }
+        }
+      }
+      final sortedAssets = _sortAssets(allAssets);
+
+      state = state.copyWith(
+        assets: sortedAssets,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to load photos', isLoading: false);
+    }
+  }
+
+  Future<List<AssetEntity>> loadMergedAssets(AssetPathEntity album) async {
+    final sources = state.mergedAlbumSources[album.id];
+    if (sources == null || sources.isEmpty) {
+      final count = await album.assetCountAsync;
+      if (count == 0) return [];
+      return (await album.getAssetListRange(start: 0, end: count)).toList();
+    }
+
+    final futures = sources.map((src) async {
+      final count = await src.assetCountAsync;
+      if (count == 0) return <AssetEntity>[];
+      return (await src.getAssetListRange(start: 0, end: count)).toList();
+    });
+
+    final results = await Future.wait(futures);
+    final allAssets = results.expand((list) => list).toList();
+    allAssets.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    return allAssets;
+  }
+
+  Future<int> getMergedAssetCount(AssetPathEntity album) async {
+    final sources = state.mergedAlbumSources[album.id];
+    if (sources == null || sources.isEmpty) {
+      return album.assetCountAsync;
+    }
+
+    final results = await Future.wait(
+      sources.map((src) => src.assetCountAsync),
+    );
+    return results.fold<int>(0, (sum, c) => sum + c);
+  }
+
+  Future<List<AssetEntity>> getMergedThumbnails(
+    AssetPathEntity album, {
+    int limit = 4,
+  }) async {
+    final sources = state.mergedAlbumSources[album.id];
+    if (sources == null || sources.isEmpty) {
+      return album.getAssetListPaged(page: 0, size: limit);
+    }
+
+    final futures = sources.map((src) async {
+      return src.getAssetListPaged(page: 0, size: limit);
+    });
+    final results = await Future.wait(futures);
+    final allAssets = results.expand((list) => list).toList();
+    allAssets.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    return allAssets.take(limit).toList();
+  }
+
   Future<void> _loadRecentAssets() async {
     try {
-      final albums = state.albums;
-      if (albums.isEmpty) return;
+      final allAssets = state.assets;
+      if (allAssets.isEmpty) return;
 
-      final allAssets = await albums.first.getAssetListPaged(
-        page: 0,
-        size: 20,
-      );
-
-      state = state.copyWith(recentAssets: _sortAssets(allAssets.toList()));
+      final recent = allAssets.take(20).toList();
+      state = state.copyWith(recentAssets: recent);
     } catch (_) {}
   }
 
@@ -212,9 +346,8 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<void> loadMore() async {}
 
   Future<void> refresh() async {
-    if (state.currentAlbum == null) return;
     state = state.copyWith(isLoading: true);
-    await _loadAssets(state.currentAlbum!, reset: true);
+    await _loadAllAssets(state.allDeviceAlbums);
   }
 
   // --- Search (moved to provider, not build()) ---
