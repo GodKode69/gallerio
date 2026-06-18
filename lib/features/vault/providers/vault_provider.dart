@@ -7,7 +7,6 @@ import 'package:path/path.dart' as p;
 
 import '../../../core/database/database.dart';
 import '../../../shared/utils/vault_utils.dart';
-import '../../auth/providers/auth_provider.dart';
 
 class VaultState {
   final List<VaultItem> items;
@@ -51,18 +50,28 @@ class VaultState {
 
 class VaultNotifier extends StateNotifier<VaultState> {
   final GallerioDatabase _db;
+  bool _disposed = false;
 
   VaultNotifier(this._db) : super(const VaultState()) {
     _init();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   Future<void> _init() async {
     try {
       state = state.copyWith(isLoading: true);
       await _loadItems();
+      if (_disposed) return;
       await _loadAlbums();
     } catch (_) {
-      state = state.copyWith(isLoading: false, error: 'Failed to load vault');
+      if (!_disposed) {
+        state = state.copyWith(isLoading: false, error: 'Failed to load vault');
+      }
     }
   }
 

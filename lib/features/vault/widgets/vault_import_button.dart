@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
@@ -98,16 +97,17 @@ class VaultImportButton extends ConsumerWidget {
       ),
     );
 
-    final paths = validFiles.map((f) => f.path!).toList();
-    await ref.read(vaultProvider.notifier).importFiles(
-      filePaths: paths,
-      assetInfo: {
-        'name': validFiles.first.name,
-        'mimeType': validFiles.first.extension ?? '',
-        'size': validFiles.fold<int>(0, (sum, f) => sum + f.size),
-        'album': 'Imported',
-      },
-    );
+    for (final file in validFiles) {
+      await ref.read(vaultProvider.notifier).importFiles(
+        filePaths: [file.path!],
+        assetInfo: {
+          'name': file.name,
+          'mimeType': file.extension ?? '',
+          'size': file.size,
+          'album': 'Imported',
+        },
+      );
+    }
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

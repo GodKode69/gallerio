@@ -22,7 +22,6 @@ void main() {
 
       int totalLines = 0;
       int totalFiles = dartFiles.length;
-      final fileStats = <String, int>{};
       final fileLines = <String, int>{};
 
       for (final file in dartFiles) {

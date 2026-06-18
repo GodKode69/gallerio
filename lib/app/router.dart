@@ -6,14 +6,13 @@ import '../features/auth/screens/pin_setup_screen.dart';
 import '../features/auth/screens/lock_screen.dart';
 import '../features/vault/screens/vault_screen.dart';
 import '../features/viewer/screens/viewer_screen.dart';
-import '../features/settings/screens/settings_screen.dart';
 import '../features/settings/screens/trash_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
 import 'shell_screen.dart';
 
 class _AuthRefreshNotifier extends ChangeNotifier {
   _AuthRefreshNotifier(this._ref) {
-    _ref.listen<AuthState>(authStateProvider, (_, __) => notifyListeners());
+    _ref.listen<AuthState>(authStateProvider, (_, _) => notifyListeners());
   }
   final Ref _ref;
 }

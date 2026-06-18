@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
@@ -60,7 +59,6 @@ class _ViewerScreenState extends State<ViewerScreen>
   final Map<int, Offset> _pointers = {};
   bool _isScaling = false;
   double _initialPinchDistance = 0;
-  Offset _pinchFocalBase = Offset.zero;
   Offset? _pointerDownPosition;
   bool _isPanning = false;
 
@@ -233,7 +231,6 @@ class _ViewerScreenState extends State<ViewerScreen>
       _baseScale = _imageScale;
       final pts = _pointers.values.toList();
       _initialPinchDistance = (pts[0] - pts[1]).distance;
-      _pinchFocalBase = (pts[0] + pts[1]) / 2;
     }
   }
 
@@ -308,8 +305,8 @@ class _ViewerScreenState extends State<ViewerScreen>
               child: Transform(
                 alignment: Alignment.center,
                 transform: Matrix4.identity()
-                  ..translate(_imageOffset.dx, _imageOffset.dy)
-                  ..scale(_imageScale),
+                  ..translateByDouble(_imageOffset.dx, _imageOffset.dy, 0.0, 1.0)
+                  ..scaleByDouble(_imageScale, _imageScale, 1.0, 1.0),
                 child: _hasSliding ? _buildPageView() : _buildSingleContent(),
               ),
             ),
@@ -589,7 +586,7 @@ class _ViewerScreenState extends State<ViewerScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not share: $e')),
+          const SnackBar(content: Text('Could not share')),
         );
       }
     }
@@ -614,7 +611,7 @@ class _ViewerScreenState extends State<ViewerScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not set wallpaper: $e')),
+          const SnackBar(content: Text('Could not set wallpaper')),
         );
       }
     }
@@ -635,16 +632,17 @@ class _ViewerScreenState extends State<ViewerScreen>
                 .read(galleryProvider.notifier)
                 .refresh();
             if (_hasSliding) {
-              final newIds = List<String>.from(widget.assetIds!)
-                ..removeAt(_currentIndex);
+              final newIds = List<String>.from(widget.assetIds!)..removeAt(_currentIndex);
               if (newIds.isEmpty) {
                 context.pop();
               } else {
                 final newIndex = _currentIndex.clamp(0, newIds.length - 1);
+                final updatedIds = List<String>.from(widget.assetIds!)..removeAt(_currentIndex);
                 setState(() {
-                  widget.assetIds!.removeAt(_currentIndex);
                   _currentIndex = newIndex;
                 });
+                widget.assetIds!.clear();
+                widget.assetIds!.addAll(updatedIds);
                 _pageController = PageController(initialPage: newIndex);
                 _loadCurrentAsset();
               }
@@ -720,7 +718,7 @@ class _ViewerScreenState extends State<ViewerScreen>
 
     if (_currentAsset != null) {
       final date = _currentAsset!.createDateTime;
-      metadata['date'] = DateFormat('MMM d, yyyy HH:mm').format(date);
+      metadata['date'] = _formatDate(date);
 
       if (_currentAsset!.type == AssetType.video) {
         final duration = _currentAsset!.videoDuration;
@@ -890,21 +888,10 @@ class _ViewerPageState extends State<_ViewerPage>
       ),
     );
   }
+}
 
-  Future<void> _openInSystemPlayer() async {
-    try {
-      final file = await _asset!.file;
-      if (file == null) return;
-      await _ViewerScreenState._channel.invokeMethod('openVideo', {
-        'filePath': file.path,
-        'mimeType': 'video/*',
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open video: $e')),
-        );
-      }
-    }
-  }
+const _monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+String _formatDate(DateTime date) {
+  return '${_monthNames[date.month - 1]} ${date.day}, ${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 }

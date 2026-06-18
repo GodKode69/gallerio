@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
-import 'package:go_router/go_router.dart';
+
 import '../../../app/shell_screen.dart';
 import '../../../app/theme.dart';
 import '../../../core/cache/thumbnail_prefetcher.dart';
@@ -154,6 +154,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     try {
       final sorted = await ref.read(galleryProvider.notifier).loadMergedAssets(album);
 
+      if (!mounted) return;
       final screenWidth = MediaQuery.of(context).size.width;
       final dpr = MediaQuery.of(context).devicePixelRatio;
       final gridColumns = ref.read(galleryProvider).gridColumns;

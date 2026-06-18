@@ -40,7 +40,7 @@ void main() {
       print('\nRuntime Dependencies (${dependencies.length}):');
       for (final dep in dependencies) {
         final weight = _getDependencyWeight(dep);
-        print('  ${dep.padRight(35)} [${weight}]');
+        print('  ${dep.padRight(35)} [$weight]');
       }
 
       print('\nDev Dependencies (${devDependencies.length}):');

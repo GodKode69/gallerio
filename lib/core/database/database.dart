@@ -109,15 +109,18 @@ class GallerioDatabase extends _$GallerioDatabase {
     final expired = await (select(trashItems)
           ..where((t) => t.deletedAt.isSmallerThanValue(cutoff)))
         .get();
-    for (final item in expired) {
-      final file = File(item.trashPath);
-      if (await file.exists()) {
-        await file.delete();
-      }
-    }
-    return (delete(trashItems)
+    final deletedDbRows = await (delete(trashItems)
           ..where((t) => t.deletedAt.isSmallerThanValue(cutoff)))
         .go();
+    for (final item in expired) {
+      try {
+        final file = File(item.trashPath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
+    return deletedDbRows;
   }
 }
 

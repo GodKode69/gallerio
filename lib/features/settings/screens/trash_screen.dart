@@ -31,6 +31,7 @@ class TrashScreenState extends State<TrashScreen> {
   Future<void> _loadTrash() async {
     setState(() => _isLoading = true);
     final items = await _trashService.getTrashItems();
+    if (!mounted) return;
     setState(() {
       _items = items;
       _isLoading = false;
@@ -63,8 +64,9 @@ class TrashScreenState extends State<TrashScreen> {
                   itemCount: _items.length,
                   itemBuilder: (context, index) {
                     final item = _items[index];
-                    final daysLeft = 30 -
-                        DateTime.now().difference(item.deletedAt).inDays;
+                    final daysLeft = (30 -
+                        DateTime.now().difference(item.deletedAt).inDays)
+                        .clamp(0, 30);
                     return Card(
                       color: AppColors.sheetBackground,
                       margin: const EdgeInsets.symmetric(
@@ -78,7 +80,7 @@ class TrashScreenState extends State<TrashScreen> {
                             child: Image.file(
                               File(item.trashPath),
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
+                              errorBuilder: (_, _, _) => Icon(
                                 item.mimeType == 'video'
                                     ? Icons.videocam
                                     : Icons.photo,

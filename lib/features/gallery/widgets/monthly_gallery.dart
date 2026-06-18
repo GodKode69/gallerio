@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/cache/thumbnail_prefetcher.dart';
@@ -122,7 +121,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
     final localPosition = renderBox.globalToLocal(globalPosition);
     final screenWidth = MediaQuery.of(context).size.width;
-    final spacing = 2.0;
+    const spacing = 2.0;
     final cellWidth = (screenWidth - spacing * (widget.columns + 1)) / widget.columns;
     final cellHeight = cellWidth;
 
@@ -428,11 +427,12 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
     for (final month in sortedMonths) {
       final monthAssets = grouped[month]!;
-      final monthKeyStr = DateFormat('yyyy-MM').format(month);
+      final monthKeyStr = '${month.year}-${month.month.toString().padLeft(2, '0')}';
       final isCollapsed = widget.collapsedMonths.contains(monthKeyStr);
 
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       items.add(_HeaderItem(
-        month: DateFormat('MMM yyyy').format(month),
+        month: '${monthNames[month.month - 1]} ${month.year}',
         monthKey: monthKeyStr,
         collapsed: isCollapsed,
       ));

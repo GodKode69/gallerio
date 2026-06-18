@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:gallerio/main.dart' as app;
-import '../helpers/perf_monitor.dart';
+import '../test/helpers/perf_monitor.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -41,13 +40,9 @@ void main() {
 
       final center = tester.getCenter(find.byType(MaterialApp));
       final offset1 = Offset(center.dx - 50, center.dy);
-      final offset2 = Offset(center.dx + 50, center.dy);
 
       await tester.tapAt(offset1);
       await tester.pump(const Duration(milliseconds: 100));
-
-      final offset3 = Offset(center.dx - 100, center.dy);
-      final offset4 = Offset(center.dx + 100, center.dy);
 
       for (int i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 16));

@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../../../app/theme.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../core/database/database.dart';
 

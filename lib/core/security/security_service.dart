@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:cryptography/cryptography.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SecurityService {
@@ -246,13 +246,17 @@ class SecurityService {
   }
 
   Future<String> _hashValue(String value, Uint8List salt) async {
-    final algorithm =
-        Pbkdf2(macAlgorithm: Hmac.sha256(), iterations: 100000, bits: 256);
-    final secretKey = await algorithm.deriveKey(
-      secretKey: SecretKey(utf8.encode(value)),
-      nonce: salt,
-    );
-    final keyData = await secretKey.extract();
-    return base64Encode(keyData.bytes);
+    final hmac = Hmac(sha256, utf8.encode(value));
+    final blockIndexBytes = Uint8List(4)
+      ..buffer.asByteData().setUint32(0, 1, Endian.big);
+    var u = hmac.convert([...salt, ...blockIndexBytes]).bytes;
+    final result = Uint8List.fromList(u);
+    for (int i = 1; i < 100000; i++) {
+      u = hmac.convert(u).bytes;
+      for (int j = 0; j < result.length; j++) {
+        result[j] ^= u[j];
+      }
+    }
+    return base64Encode(result);
   }
 }

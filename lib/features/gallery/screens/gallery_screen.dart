@@ -23,7 +23,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   double _scaleStart = 1.0;
   final ScrollController _scrollController = ScrollController();
   final Map<int, Offset> _pointers = {};
-  bool _isPinching = false;
   ThumbnailPrefetcher? _prefetcher;
   List<AssetEntity>? _lastDisplayAssets;
   List<MonthSection> _sections = [];
@@ -61,13 +60,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     final isSelectionMode = ref.watch(
       galleryProvider.select((s) => s.isSelectionMode),
     );
-    final favoriteIds = ref.watch(
-      galleryProvider.select((s) => s.favoriteIds),
-    );
-
     final screenWidth = MediaQuery.of(context).size.width;
     final dpr = MediaQuery.of(context).devicePixelRatio;
-    final spacing = 2.0;
+    const spacing = 2.0;
     final cellWidth = (screenWidth - spacing * (gridColumns + 1)) / gridColumns;
     final cellPx = (cellWidth * dpr).round();
 
@@ -82,7 +77,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       onPointerDown: (event) {
         _pointers[event.pointer] = event.position;
         if (_pointers.length == 2) {
-          _isPinching = true;
           ref.read(isPinchingProvider.notifier).state = true;
           final pts = _pointers.values.toList();
           _scaleStart = (pts[0] - pts[1]).distance;
@@ -120,7 +114,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
         _pointers.remove(event.pointer);
         if (_pointers.length < 2) {
           _scaleStart = 0;
-          _isPinching = false;
           ref.read(isPinchingProvider.notifier).state = false;
         }
       },
@@ -128,7 +121,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
         _pointers.remove(event.pointer);
         if (_pointers.length < 2) {
           _scaleStart = 0;
-          _isPinching = false;
           ref.read(isPinchingProvider.notifier).state = false;
         }
       },
@@ -156,7 +148,11 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
           },
           onSectionsBuilt: (sections) {
             if (!_sectionsEquals(_sections, sections)) {
-              setState(() => _sections = sections);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() => _sections = sections);
+                }
+              });
             }
           },
         ),

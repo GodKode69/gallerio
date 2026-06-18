@@ -31,7 +31,7 @@ jobs:
           EOF
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --target-platform android-arm64,android-arm
 
       - name: Verify APK exists
         run: |

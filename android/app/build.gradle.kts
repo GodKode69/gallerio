@@ -43,6 +43,9 @@ android {
     buildTypes {
         release {
             val ks = keystoreProperties["storeFile"] as String?
+            if (ks == null || !file(ks).exists()) {
+                logger.warn("WARNING: key.properties not found. Release APK will be signed with debug key.")
+            }
             signingConfig = if (ks != null && file(ks).exists()) {
                 signingConfigs.getByName("release")
             } else {

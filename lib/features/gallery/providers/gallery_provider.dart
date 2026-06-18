@@ -171,8 +171,9 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
       final albums = rawAlbums.where((a) {
         final name = a.name.toLowerCase();
         if (name.contains('recent')) return false;
-        if (whatsappAlbums.contains(a) &&
-            a.id != whatsappAlbums.first.id) return false;
+        if (whatsappAlbums.contains(a) && a.id != whatsappAlbums.first.id) {
+          return false;
+        }
         return true;
       }).toList();
 

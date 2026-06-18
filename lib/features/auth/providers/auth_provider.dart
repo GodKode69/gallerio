@@ -51,17 +51,28 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final SecurityService _security;
+  bool _disposed = false;
 
   AuthNotifier(this._security) : super(const AuthState()) {
     _init();
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   Future<void> _init() async {
     try {
       final isPinSet = await _security.isPinSet();
+      if (_disposed) return;
       final hasVaultCode = await _security.hasVaultCode();
+      if (_disposed) return;
       final isVaultEnabled = await _security.isVaultEnabled();
+      if (_disposed) return;
       final isBiometricEnabled = await _security.isBiometricEnabled();
+      if (_disposed) return;
       state = state.copyWith(
         isPinSet: isPinSet,
         isLoading: false,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 class TimelineScrubber extends StatefulWidget {
@@ -38,7 +37,7 @@ class _TimelineScrubberState extends State<TimelineScrubber> {
       if (lastMonth == null || monthKey != lastMonth) {
         entries.add(_MonthEntry(
           month: monthKey,
-          label: DateFormat('MMM yyyy').format(monthKey),
+          label: _formatScrubberMonth(monthKey),
           assetIndex: sorted.indexOf(asset),
         ));
         lastMonth = monthKey;
@@ -156,3 +155,7 @@ class _MonthEntry {
     required this.assetIndex,
   });
 }
+
+const _monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+String _formatScrubberMonth(DateTime date) => '${_monthNames[date.month - 1]} ${date.year}';

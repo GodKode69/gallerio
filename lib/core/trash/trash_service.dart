@@ -71,8 +71,10 @@ class TrashService {
         title: item.name,
       );
 
-      await file.delete();
       await _db.deleteTrashItem(item.id);
+      try {
+        await file.delete();
+      } catch (_) {}
       return true;
     } catch (_) {
       return false;
@@ -98,12 +100,14 @@ class TrashService {
 
   Future<void> emptyTrash() async {
     final items = await _db.getAllTrashItems();
-    for (final item in items) {
-      final file = File(item.trashPath);
-      if (await file.exists()) {
-        await file.delete();
-      }
-    }
     await _db.deleteAllTrashItems();
+    for (final item in items) {
+      try {
+        final file = File(item.trashPath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
   }
 }

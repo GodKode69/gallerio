@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
-import 'dart:io';
 import '../../../app/theme.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -163,7 +162,7 @@ class _BiometricToggleState extends ConsumerState<_BiometricToggle> {
           try {
             final canAuth = await _localAuth.canCheckBiometrics;
             if (!canAuth) {
-              if (mounted) {
+              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                       content: Text('Biometric not available on this device')),
@@ -184,7 +183,7 @@ class _BiometricToggleState extends ConsumerState<_BiometricToggle> {
 
             await notifier.setBiometricEnabled(true);
           } catch (e) {
-            if (mounted) {
+            if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Biometric error: $e')),
               );

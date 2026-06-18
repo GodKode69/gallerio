@@ -23,7 +23,6 @@ void main() {
     final buildDir = Directory('build/app/intermediates');
     if (buildDir.existsSync()) {
       int totalDex = 0;
-      int totalNativeLibs = 0;
 
       final dexFiles = buildDir
           .listSync(recursive: true)
