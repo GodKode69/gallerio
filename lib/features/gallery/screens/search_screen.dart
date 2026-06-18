@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import '../../../app/theme.dart';
+import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../providers/gallery_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -22,15 +23,19 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  final _scrollController = ScrollController();
   String _selectedFilter = 'all';
   Timer? _debounceTimer;
   List<AssetEntity> _searchResults = [];
   bool _showFavoritesOnly = false;
+  ThumbnailPrefetcher? _prefetcher;
 
   @override
   void initState() {
     super.initState();
     searchFocusTrigger.addListener(_onFocusTrigger);
+    _prefetcher = ThumbnailPrefetcher(cellPixelSize: 200);
+    _scrollController.addListener(_onScrollForPrefetch);
   }
 
   @override
@@ -39,7 +44,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _debounceTimer?.cancel();
     _controller.dispose();
     _focusNode.dispose();
+    _scrollController.removeListener(_onScrollForPrefetch);
+    _scrollController.dispose();
+    _prefetcher?.dispose();
     super.dispose();
+  }
+
+  void _onScrollForPrefetch() {
+    if (_prefetcher == null || !_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final viewportHeight = MediaQuery.of(context).size.height;
+    final visibleIds = <String>{};
+    final cellSize = MediaQuery.of(context).size.width / 3;
+    final rowHeight = cellSize + 2;
+    final firstRow = (offset / rowHeight).floor();
+    final lastRow = ((offset + viewportHeight) / rowHeight).ceil();
+    final assets = _showFavoritesOnly
+        ? _getFavoriteAssets()
+        : _controller.text.isNotEmpty
+            ? _searchResults
+            : ref.read(galleryProvider).recentlyViewed;
+    for (int row = firstRow; row <= lastRow; row++) {
+      for (int col = 0; col < 3; col++) {
+        final idx = row * 3 + col;
+        if (idx >= 0 && idx < assets.length) {
+          visibleIds.add(assets[idx].id);
+        }
+      }
+    }
+    _prefetcher!.updateVisibleIds(visibleIds);
+  }
+
+  List<AssetEntity> _getFavoriteAssets() {
+    final favoriteIds = ref.read(galleryProvider).favoriteIds;
+    final assets = ref.read(galleryProvider).assets;
+    return assets.where((a) => favoriteIds.contains(a.id)).toList();
   }
 
   void _onFocusTrigger() {
@@ -62,6 +101,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       setState(() {
         _searchResults = results;
       });
+      _prefetcher?.updateAssets(results);
+      _onScrollForPrefetch();
     });
   }
 
@@ -264,6 +305,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
+    _prefetcher?.updateAssets(recentlyViewed);
+
     final rows = <List<AssetEntity>>[];
     for (int i = 0; i < recentlyViewed.length; i += 3) {
       rows.add(recentlyViewed.sublist(
@@ -273,6 +316,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     return ListView(
+      controller: _scrollController,
       padding: const EdgeInsets.only(bottom: 20),
       children: [
         Padding(
@@ -307,11 +351,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 'initialIndex': flatIndex >= 0 ? flatIndex : 0,
                               });
                             },
-                            child: AspectRatio(
+                              child: AspectRatio(
                               aspectRatio: 1,
                               child: GalleryThumbnail(
                                 asset: row[i],
                                 thumbnailSize: const ThumbnailSize.square(200),
+                                prefetcher: _prefetcher,
                                 enableHero: true,
                                 onTap: () {
                                   ref
@@ -369,11 +414,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
+    _prefetcher?.updateAssets(favAssets);
     return _buildResultsGrid(favAssets);
   }
 
   Widget _buildResultsGrid(List<AssetEntity> results) {
     return GridView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(2),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -386,6 +433,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return GalleryThumbnail(
           asset: asset,
           thumbnailSize: const ThumbnailSize.square(200),
+          prefetcher: _prefetcher,
           isFavorite: ref.read(galleryProvider).favoriteIds.contains(asset.id),
           enableHero: true,
           onTap: () {
