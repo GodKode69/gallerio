@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart' as drift;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:photo_manager/photo_manager.dart';
@@ -31,12 +30,14 @@ class TrashService {
 
       await file.copy(trashPath);
 
-      await _db.insertTrashItem(TrashItemsCompanion.insert(
+      await _db.insertTrashItem(TrashItem(
+        id: 0,
         assetId: asset.id,
         name: asset.title ?? 'Photo',
         trashPath: trashPath,
-        mimeType: drift.Value(asset.type == AssetType.video ? 'video' : 'image'),
-        size: drift.Value(asset.width * asset.height),
+        mimeType: asset.type == AssetType.video ? 'video' : 'image',
+        size: asset.width * asset.height,
+        deletedAt: DateTime.now(),
       ));
     } catch (_) {}
   }

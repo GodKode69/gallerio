@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
+import '../../../app/router.dart';
 import '../providers/auth_provider.dart';
 
 class LockScreen extends ConsumerStatefulWidget {
@@ -88,7 +88,7 @@ class _LockScreenState extends ConsumerState<LockScreen>
 
       if (authenticated && mounted) {
         ref.read(authStateProvider.notifier).setUnlocked(true);
-        context.go('/gallery');
+        AppNavigator.goToGallery(context);
       }
     } catch (e) {
       if (mounted) setState(() => _canUseBiometric = false);
@@ -134,7 +134,7 @@ class _LockScreenState extends ConsumerState<LockScreen>
 
     final state = ref.read(authStateProvider);
     if (state.isUnlocked) {
-      context.go('/gallery');
+      AppNavigator.goToGallery(context);
     } else if (state.error != null) {
       _shakeController.forward(from: 0);
       _pinController.clear();

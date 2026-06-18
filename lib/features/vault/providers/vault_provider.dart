@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -139,15 +138,18 @@ class VaultNotifier extends StateNotifier<VaultState> {
           thumbnailPath = thumbPath;
         } catch (_) {}
 
-        await _db.insertVaultItem(VaultItemsCompanion.insert(
+        await _db.insertVaultItem(VaultItem(
+          id: 0,
           name: name,
           encryptedPath: vaultPath,
-          originalName: Value(name),
-          mimeType: Value(mimeType),
-          size: Value(size),
-          album: Value(album),
+          originalName: name,
+          mimeType: mimeType,
+          size: size,
+          dateAdded: DateTime.now(),
+          dateModified: DateTime.now(),
+          album: album,
           iv: '',
-          thumbnailPath: Value(thumbnailPath),
+          thumbnailPath: thumbnailPath,
         ));
       }
 
@@ -181,10 +183,7 @@ class VaultNotifier extends StateNotifier<VaultState> {
   Future<void> toggleFavorite(int id) async {
     final item = await _db.getVaultItemById(id);
     if (item != null) {
-      await _db.updateVaultItem(VaultItemsCompanion(
-        id: Value(id),
-        isFavorite: Value(!item.isFavorite),
-      ));
+      await _db.updateVaultItem(item.copyWith(isFavorite: !item.isFavorite));
       final updatedItems = state.items.map((i) {
         if (i.id == id) {
           return VaultItem(

@@ -8,7 +8,6 @@ import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../providers/gallery_provider.dart';
 import '../../../core/database/database.dart';
 import '../../../core/trash/trash_service.dart';
-import 'package:drift/drift.dart' as drift;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
@@ -148,13 +147,16 @@ class MultiSelectBar extends ConsumerWidget {
 
         final name = asset.title ?? 'Photo';
 
-        await db.insertVaultItem(VaultItemsCompanion.insert(
+        await db.insertVaultItem(VaultItem(
+          id: 0,
           name: name,
           encryptedPath: vaultPath,
-          originalName: drift.Value(name),
-          mimeType: drift.Value(asset.type == AssetType.video ? 'video' : 'image'),
-          size: const drift.Value(0),
-          album: const drift.Value('Imported'),
+          originalName: name,
+          mimeType: asset.type == AssetType.video ? 'video' : 'image',
+          size: 0,
+          dateAdded: DateTime.now(),
+          dateModified: DateTime.now(),
+          album: 'Imported',
           iv: '',
         ));
         count++;

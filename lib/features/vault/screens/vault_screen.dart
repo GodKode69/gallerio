@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 
@@ -27,7 +27,7 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
         title: const Text('Vault'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/gallery'),
+          onPressed: () => AppNavigator.goToGallery(context),
         ),
         actions: [
           IconButton(
@@ -49,12 +49,13 @@ class _VaultScreenState extends ConsumerState<VaultScreen> {
                 final file =
                     await ref.read(vaultProvider.notifier).getFileForViewing(item);
                 if (file != null && context.mounted) {
-                  context.push('/viewer', extra: {
-                    'filePath': file.path,
-                    'title': item.name,
-                    'isVaultItem': true,
-                    'vaultItemId': item.id,
-                  });
+                  AppNavigator.goToViewer(
+                    context,
+                    filePath: file.path,
+                    title: item.name,
+                    isVaultItem: true,
+                    vaultItemId: item.id,
+                  );
                 }
               },
               onDelete: (item) async {

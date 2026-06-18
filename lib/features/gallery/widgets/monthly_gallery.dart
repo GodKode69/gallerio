@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:go_router/go_router.dart';
+import '../../../app/router.dart';
 import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/gallery_scroll_handle.dart';
@@ -367,14 +367,15 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
                               } else {
                                 final flatIndex =
                                     widget.assets.indexOf(row.assets[i]);
-                                context.push('/viewer', extra: {
-                                  'assetId': row.assets[i].id,
-                                  'title': row.assets[i].title ?? 'Photo',
-                                  'assetIds':
+                                AppNavigator.goToViewer(
+                                  context,
+                                  assetId: row.assets[i].id,
+                                  title: row.assets[i].title ?? 'Photo',
+                                  assetIds:
                                       widget.assets.map((a) => a.id).toList(),
-                                  'initialIndex':
+                                  initialIndex:
                                       flatIndex >= 0 ? flatIndex : 0,
-                                });
+                                );
                               }
                             },
                           )

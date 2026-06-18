@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
+import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -23,9 +23,10 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: authState.isPinSet
                 ? 'PIN is set'
                 : 'Protect your app with a PIN',
-            onTap: () => context.push('/setup', extra: {
-              'changeMode': authState.isPinSet,
-            }),
+            onTap: () => AppNavigator.goToSetup(
+              context,
+              changeMode: authState.isPinSet,
+            ),
           ),
           if (authState.isPinSet)
             _SettingsTile(
@@ -211,7 +212,7 @@ class _TrashBin extends ConsumerWidget {
   }
 
   void _openTrashScreen(BuildContext context) {
-    context.push('/trash');
+    AppNavigator.goToTrash(context);
   }
 }
 

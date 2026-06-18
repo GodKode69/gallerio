@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import '../../../app/router.dart';
 import '../providers/auth_provider.dart';
 
 class PinSetupScreen extends ConsumerStatefulWidget {
@@ -131,20 +131,20 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
           _firstPin = '';
           _oldPin = '';
           if (mounted) {
-            if (context.canPop()) {
-              context.pop();
+            if (AppNavigator.canPop(context)) {
+              AppNavigator.pop(context);
             } else {
-              context.go('/gallery');
+              AppNavigator.goToGallery(context);
             }
           }
         } else {
           await authNotifier.setupPin(_confirmController.text);
           _firstPin = '';
           if (mounted) {
-            if (context.canPop()) {
-              context.pop();
+            if (AppNavigator.canPop(context)) {
+              AppNavigator.pop(context);
             } else {
-              context.go('/gallery');
+              AppNavigator.goToGallery(context);
             }
           }
         }
@@ -163,10 +163,10 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
           next.isPinSet &&
           (prev?.isLoading ?? false) &&
           !next.isLoading) {
-        if (context.canPop()) {
-          context.pop();
+        if (AppNavigator.canPop(context)) {
+          AppNavigator.pop(context);
         } else {
-          context.go('/gallery');
+          AppNavigator.goToGallery(context);
         }
       }
     });

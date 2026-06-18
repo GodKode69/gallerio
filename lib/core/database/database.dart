@@ -1,133 +1,174 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
 
-part 'database.g.dart';
+import 'models.dart';
 
-class VaultItems extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get name => text()();
-  TextColumn get encryptedPath => text()();
-  TextColumn get originalName => text().nullable()();
-  TextColumn get mimeType => text().withDefault(const Constant(''))();
-  IntColumn get size => integer().withDefault(const Constant(0))();
-  DateTimeColumn get dateAdded => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get dateModified => dateTime().withDefault(currentDateAndTime)();
-  TextColumn get album => text().withDefault(const Constant(''))();
-  BoolColumn get isFavorite => boolean().withDefault(const Constant(false))();
-  TextColumn get thumbnailPath => text().nullable()();
-  TextColumn get iv => text()();
-}
+export 'models.dart';
 
-class TrashItems extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get assetId => text()();
-  TextColumn get name => text()();
-  TextColumn get trashPath => text()();
-  TextColumn get mimeType => text().withDefault(const Constant(''))();
-  IntColumn get size => integer().withDefault(const Constant(0))();
-  DateTimeColumn get deletedAt => dateTime().withDefault(currentDateAndTime)();
-}
-
-@DriftDatabase(tables: [VaultItems, TrashItems])
-class GallerioDatabase extends _$GallerioDatabase {
+class GallerioDatabase {
   static GallerioDatabase? _instance;
+  Database? _db;
 
   factory GallerioDatabase() => _instance ??= GallerioDatabase._();
+  GallerioDatabase._();
 
-  GallerioDatabase._() : super(_openConnection());
-
-  @override
-  int get schemaVersion => 2;
-
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-        },
-        onUpgrade: (m, from, to) async {
-          if (from < 2) {
-            await m.createTable(trashItems);
-          }
-        },
-      );
+  Future<Database> get database async {
+    if (_db != null) return _db!;
+    final dir = await getApplicationDocumentsDirectory();
+    final path = p.join(dir.path, 'gallerio.db');
+    _db = await openDatabase(
+      path,
+      version: 2,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE vault_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            encrypted_path TEXT NOT NULL,
+            original_name TEXT,
+            mime_type TEXT DEFAULT '',
+            size INTEGER DEFAULT 0,
+            date_added INTEGER NOT NULL,
+            date_modified INTEGER NOT NULL,
+            album TEXT DEFAULT '',
+            is_favorite INTEGER DEFAULT 0,
+            thumbnail_path TEXT,
+            iv TEXT NOT NULL
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE trash_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            asset_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            trash_path TEXT NOT NULL,
+            mime_type TEXT DEFAULT '',
+            size INTEGER DEFAULT 0,
+            deleted_at INTEGER NOT NULL
+          )
+        ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('''
+            CREATE TABLE trash_items (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              asset_id TEXT NOT NULL,
+              name TEXT NOT NULL,
+              trash_path TEXT NOT NULL,
+              mime_type TEXT DEFAULT '',
+              size INTEGER DEFAULT 0,
+              deleted_at INTEGER NOT NULL
+            )
+          ''');
+        }
+      },
+    );
+    return _db!;
+  }
 
   // --- Vault Items ---
 
-  Future<int> insertVaultItem(VaultItemsCompanion item) =>
-      into(vaultItems).insert(item);
+  Future<int> insertVaultItem(VaultItem item) async {
+    final db = await database;
+    final map = item.toMap()..remove('id');
+    return db.insert('vault_items', map);
+  }
 
-  Future<bool> updateVaultItem(VaultItemsCompanion item) =>
-      update(vaultItems).replace(item);
+  Future<bool> updateVaultItem(VaultItem item) async {
+    final db = await database;
+    final count = await db.update(
+      'vault_items',
+      item.toMap(),
+      where: 'id = ?',
+      whereArgs: [item.id],
+    );
+    return count > 0;
+  }
 
-  Future<int> deleteVaultItem(int id) =>
-      (delete(vaultItems)..where((t) => t.id.equals(id))).go();
+  Future<int> deleteVaultItem(int id) async {
+    final db = await database;
+    return db.delete('vault_items', where: 'id = ?', whereArgs: [id]);
+  }
 
-  Future<VaultItem?> getVaultItemById(int id) =>
-      (select(vaultItems)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<VaultItem?> getVaultItemById(int id) async {
+    final db = await database;
+    final rows = await db.query('vault_items',
+        where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isEmpty) return null;
+    return VaultItem.fromMap(rows.first);
+  }
 
-  Future<List<VaultItem>> getAllVaultItems() => select(vaultItems).get();
+  Future<List<VaultItem>> getAllVaultItems() async {
+    final db = await database;
+    final rows = await db.query('vault_items', orderBy: 'date_added DESC');
+    return rows.map(VaultItem.fromMap).toList();
+  }
 
   Future<List<VaultItem>> searchVaultItems(String query) async {
-    final queryLower = query.toLowerCase();
-    final allItems = await select(vaultItems).get();
-    return allItems
-        .where((item) => item.name.toLowerCase().contains(queryLower))
+    final db = await database;
+    final rows = await db.query('vault_items');
+    final q = query.toLowerCase();
+    return rows
+        .map(VaultItem.fromMap)
+        .where((item) => item.name.toLowerCase().contains(q))
         .toList();
   }
 
   Future<List<String>> getAllAlbums() async {
-    final query = selectOnly(vaultItems)
-      ..addColumns([vaultItems.album])
-      ..groupBy([vaultItems.album]);
-    final results = await query.get();
-    return results
-        .map((row) => row.read(vaultItems.album) ?? '')
-        .where((a) => a.isNotEmpty)
-        .toList();
+    final db = await database;
+    final rows = await db.rawQuery(
+        'SELECT DISTINCT album FROM vault_items WHERE album != "" ORDER BY album');
+    return rows.map((r) => r['album'] as String).toList();
   }
 
   // --- Trash Items ---
 
-  Future<int> insertTrashItem(TrashItemsCompanion item) =>
-      into(trashItems).insert(item);
+  Future<int> insertTrashItem(TrashItem item) async {
+    final db = await database;
+    final map = item.toMap()..remove('id');
+    return db.insert('trash_items', map);
+  }
 
-  Future<List<TrashItem>> getAllTrashItems() => select(trashItems).get();
+  Future<List<TrashItem>> getAllTrashItems() async {
+    final db = await database;
+    final rows = await db.query('trash_items', orderBy: 'deleted_at DESC');
+    return rows.map(TrashItem.fromMap).toList();
+  }
 
-  Future<TrashItem?> getTrashItemById(int id) =>
-      (select(trashItems)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<TrashItem?> getTrashItemById(int id) async {
+    final db = await database;
+    final rows = await db.query('trash_items',
+        where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isEmpty) return null;
+    return TrashItem.fromMap(rows.first);
+  }
 
-  Future<int> deleteTrashItem(int id) =>
-      (delete(trashItems)..where((t) => t.id.equals(id))).go();
+  Future<int> deleteTrashItem(int id) async {
+    final db = await database;
+    return db.delete('trash_items', where: 'id = ?', whereArgs: [id]);
+  }
 
-  Future<int> deleteAllTrashItems() => delete(trashItems).go();
+  Future<int> deleteAllTrashItems() async {
+    final db = await database;
+    return db.delete('trash_items');
+  }
 
   Future<int> purgeExpiredTrash(DateTime cutoff) async {
-    final expired = await (select(trashItems)
-          ..where((t) => t.deletedAt.isSmallerThanValue(cutoff)))
-        .get();
-    final deletedDbRows = await (delete(trashItems)
-          ..where((t) => t.deletedAt.isSmallerThanValue(cutoff)))
-        .go();
-    for (final item in expired) {
+    final db = await database;
+    final rows = await db.query('trash_items',
+        where: 'deleted_at < ?', whereArgs: [cutoff.millisecondsSinceEpoch]);
+    final deleted = await db.delete('trash_items',
+        where: 'deleted_at < ?', whereArgs: [cutoff.millisecondsSinceEpoch]);
+    for (final row in rows) {
       try {
-        final file = File(item.trashPath);
-        if (await file.exists()) {
-          await file.delete();
-        }
+        final file = File(row['trash_path'] as String);
+        if (await file.exists()) await file.delete();
       } catch (_) {}
     }
-    return deletedDbRows;
+    return deleted;
   }
-}
-
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'gallerio.db'));
-    return NativeDatabase(file);
-  });
 }

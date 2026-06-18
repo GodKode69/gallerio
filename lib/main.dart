@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'app/router.dart';
+
+import 'app/shell_screen.dart';
 import 'app/theme.dart';
+import 'features/auth/providers/auth_provider.dart';
+import 'features/auth/screens/lock_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,13 +16,16 @@ class GallerioApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
+    final authState = ref.watch(authStateProvider);
 
-    return MaterialApp.router(
+    final bool showLock =
+        authState.isPinSet && !authState.isUnlocked && !authState.isLoading;
+
+    return MaterialApp(
       title: 'Gallerio',
       theme: GallerioTheme.darkTheme,
-      routerConfig: router,
       debugShowCheckedModeBanner: false,
+      home: showLock ? const LockScreen() : const ShellScreen(),
     );
   }
 }

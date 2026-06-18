@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/storage/local_prefs.dart';
 import '../../../core/trash/trash_service.dart';
 
 enum SortField { date, name, size }
@@ -435,16 +435,14 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _loadFavorites() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final favs = prefs.getStringList('favorite_ids') ?? [];
+      final favs = await LocalPrefs().getStringList('favorite_ids');
       state = state.copyWith(favoriteIds: favs.toSet());
     } catch (_) {}
   }
 
   Future<void> _saveFavorites() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
+      await LocalPrefs().setStringList(
           'favorite_ids', state.favoriteIds.toList());
     } catch (_) {}
   }
@@ -460,8 +458,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _loadSortOrder() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final index = prefs.getInt('sort_order') ?? 0;
+      final index = await LocalPrefs().getInt('sort_order') ?? 0;
       state = state.copyWith(
           sortOrder: SortOrder.values[index.clamp(0, SortOrder.values.length - 1)]);
     } catch (_) {}
@@ -469,8 +466,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _saveSortOrder() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('sort_order', state.sortOrder.index);
+      await LocalPrefs().setInt('sort_order', state.sortOrder.index);
     } catch (_) {}
   }
 
@@ -489,8 +485,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _loadRecentlyViewed() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final ids = prefs.getStringList('recently_viewed_ids') ?? [];
+      final ids = await LocalPrefs().getStringList('recently_viewed_ids');
       final results = await Future.wait(
         ids.map((id) => AssetEntity.fromId(id)),
       );
@@ -501,9 +496,8 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _saveRecentlyViewed() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final ids = state.recentlyViewed.map((a) => a.id).toList();
-      await prefs.setStringList('recently_viewed_ids', ids);
+      await LocalPrefs().setStringList('recently_viewed_ids', ids);
     } catch (_) {}
   }
 
@@ -517,10 +511,9 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _loadGridColumns() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getInt('grid_columns');
+      final saved = await LocalPrefs().getInt('grid_columns');
       if (saved == 5) {
-        await prefs.remove('grid_columns');
+        await LocalPrefs().remove('grid_columns');
         state = state.copyWith(gridColumns: 4);
       } else {
         final columns = saved ?? 4;
@@ -531,8 +524,7 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
 
   Future<void> _saveGridColumns(int columns) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('grid_columns', columns);
+      await LocalPrefs().setInt('grid_columns', columns);
     } catch (_) {}
   }
 }

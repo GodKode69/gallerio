@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -452,7 +451,7 @@ class _ViewerScreenState extends State<ViewerScreen>
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => context.pop(),
+            onPressed: () => Navigator.of(context).pop(),
           ),
           Expanded(
             child: Text(
@@ -634,7 +633,7 @@ class _ViewerScreenState extends State<ViewerScreen>
             if (_hasSliding) {
               final newIds = List<String>.from(widget.assetIds!)..removeAt(_currentIndex);
               if (newIds.isEmpty) {
-                context.pop();
+                Navigator.of(context).pop();
               } else {
                 final newIndex = _currentIndex.clamp(0, newIds.length - 1);
                 final updatedIds = List<String>.from(widget.assetIds!)..removeAt(_currentIndex);
@@ -647,7 +646,7 @@ class _ViewerScreenState extends State<ViewerScreen>
                 _loadCurrentAsset();
               }
             } else {
-              context.pop();
+              Navigator.of(context).pop();
             }
             showTopMessage(context, 'Moved to trash');
           } else if (mounted) {
