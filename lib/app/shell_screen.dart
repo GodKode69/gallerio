@@ -11,6 +11,7 @@ import '../features/gallery/providers/gallery_provider.dart';
 
 final searchFocusTrigger = ValueNotifier<int>(0);
 final resetAlbumDetail = ValueNotifier<int>(0);
+final albumHasSelection = ValueNotifier<bool>(false);
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -58,13 +59,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
 
   @override
   Future<bool> didPopRoute() async {
+    if (ref.read(galleryProvider).isSelectionMode) {
+      ref.read(galleryProvider.notifier).exitSelectionMode();
+      return true;
+    }
+    if (albumHasSelection.value) {
+      albumHasSelection.value = false;
+      return true;
+    }
     if (ref.read(isAlbumDetailProvider)) {
       ref.read(isAlbumDetailProvider.notifier).state = false;
       resetAlbumDetail.value++;
-      return true;
-    }
-    if (ref.read(galleryProvider).isSelectionMode) {
-      ref.read(galleryProvider.notifier).exitSelectionMode();
       return true;
     }
     return false;

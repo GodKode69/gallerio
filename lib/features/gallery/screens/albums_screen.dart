@@ -64,6 +64,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     if (_selectedAlbum != null) {
       _albumPrefetcher?.dispose();
       _albumPrefetcher = null;
+      albumHasSelection.value = false;
       setState(() {
         _selectedAlbum = null;
         _albumAssets = [];
@@ -83,6 +84,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         _albumSelectedIds.add(id);
       }
       _albumSelectionMode = _albumSelectedIds.isNotEmpty;
+      albumHasSelection.value = _albumSelectionMode;
     });
   }
 
@@ -92,17 +94,22 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         ..clear()
         ..addAll(ids);
       _albumSelectionMode = _albumSelectedIds.isNotEmpty;
+      albumHasSelection.value = _albumSelectionMode;
     });
   }
 
   void _enterAlbumSelectionMode() {
-    setState(() => _albumSelectionMode = true);
+    setState(() {
+      _albumSelectionMode = true;
+      albumHasSelection.value = true;
+    });
   }
 
   void _exitAlbumSelectionMode() {
     setState(() {
       _albumSelectedIds.clear();
       _albumSelectionMode = false;
+      albumHasSelection.value = false;
     });
   }
 
@@ -416,7 +423,12 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
+            if (_albumSelectionMode) {
+              _exitAlbumSelectionMode();
+              return;
+            }
             ref.read(isAlbumDetailProvider.notifier).state = false;
+            albumHasSelection.value = false;
             _albumPrefetcher?.dispose();
             _albumPrefetcher = null;
             setState(() {
