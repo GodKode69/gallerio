@@ -3,17 +3,27 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../app/shell_screen.dart';
 import '../../../app/theme.dart';
 import '../../../core/cache/thumbnail_prefetcher.dart';
+import '../../../core/database/database.dart';
+import '../../../core/trash/trash_service.dart';
+import '../../../shared/utils/vault_utils.dart';
+import '../../../shared/widgets/confirm_delete_dialog.dart';
+import '../../../shared/widgets/navbar_scroll_observer.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/staggered_animation.dart';
 import '../widgets/monthly_gallery.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'dart:io';
 
 class AlbumsScreen extends ConsumerStatefulWidget {
-  const AlbumsScreen({super.key});
+  final NavbarScrollObserver? navbarObserver;
+  const AlbumsScreen({super.key, this.navbarObserver});
 
   @override
   ConsumerState<AlbumsScreen> createState() => _AlbumsScreenState();
@@ -29,6 +39,12 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   String _albumTypeFilter = 'all';
   final Set<String> _albumCollapsedMonths = {};
 
+  final Set<String> _albumSelectedIds = {};
+  bool _albumSelectionMode = false;
+
+  final ScrollController _albumScrollController = ScrollController();
+  final ScrollController _albumDetailScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +55,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   void dispose() {
     resetAlbumDetail.removeListener(_onResetAlbumDetail);
     _albumPrefetcher?.dispose();
+    _albumScrollController.dispose();
+    _albumDetailScrollController.dispose();
     super.dispose();
   }
 
@@ -51,8 +69,55 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         _albumAssets = [];
         _albumTypeFilter = 'all';
         _albumCollapsedMonths.clear();
+        _albumSelectedIds.clear();
+        _albumSelectionMode = false;
       });
     }
+  }
+
+  void _toggleAlbumSelection(String id) {
+    setState(() {
+      if (_albumSelectedIds.contains(id)) {
+        _albumSelectedIds.remove(id);
+      } else {
+        _albumSelectedIds.add(id);
+      }
+      _albumSelectionMode = _albumSelectedIds.isNotEmpty;
+    });
+  }
+
+  void _setAlbumSelection(Set<String> ids) {
+    setState(() {
+      _albumSelectedIds
+        ..clear()
+        ..addAll(ids);
+      _albumSelectionMode = _albumSelectedIds.isNotEmpty;
+    });
+  }
+
+  void _enterAlbumSelectionMode() {
+    setState(() => _albumSelectionMode = true);
+  }
+
+  void _exitAlbumSelectionMode() {
+    setState(() {
+      _albumSelectedIds.clear();
+      _albumSelectionMode = false;
+    });
+  }
+
+  void _selectAllAlbum() {
+    setState(() {
+      _albumSelectedIds
+        ..clear()
+        ..addAll(_filteredAlbumAssets.map((a) => a.id));
+    });
+  }
+
+  List<AssetEntity> get _albumSelectedAssets {
+    return _filteredAlbumAssets
+        .where((a) => _albumSelectedIds.contains(a.id))
+        .toList();
   }
 
   List<AssetEntity> get _filteredAlbumAssets {
@@ -94,6 +159,51 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       return _buildAlbumView();
     }
 
+    final observer = widget.navbarObserver;
+
+    Widget gridBody = GridView.builder(
+      controller: _albumScrollController,
+      padding: EdgeInsets.fromLTRB(
+        12,
+        12,
+        12,
+        12 + MediaQuery.of(context).viewPadding.bottom + 68,
+      ),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: albums.length,
+      itemBuilder: (context, index) {
+        final album = albums[index];
+        return StaggeredAnimation(
+          index: index,
+          itemCount: albums.length,
+          child: AlbumCard(
+            key: ValueKey(album.id),
+            album: album,
+            displayName: ref
+                .read(galleryProvider)
+                .getAlbumDisplayName(album),
+            sourceAlbums: ref
+                .read(galleryProvider)
+                .mergedAlbumSources[album.id] ?? [],
+            onTap: () => _openAlbum(album),
+          ),
+        );
+      },
+    );
+
+    if (observer != null) {
+      gridBody = NavbarAwareScrollWrapper(
+        scrollController: _albumScrollController,
+        observer: observer,
+        child: gridBody,
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Albums'),
@@ -107,39 +217,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
-          : GridView.builder(
-              padding: EdgeInsets.fromLTRB(
-                12,
-                12,
-                12,
-                12 + MediaQuery.of(context).viewPadding.bottom + 68,
-              ),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.85,
-              ),
-              itemCount: albums.length,
-              itemBuilder: (context, index) {
-                final album = albums[index];
-                return StaggeredAnimation(
-                  index: index,
-                  itemCount: albums.length,
-                  child: AlbumCard(
-                    key: ValueKey(album.id),
-                    album: album,
-                    displayName: ref
-                        .read(galleryProvider)
-                        .getAlbumDisplayName(album),
-                    sourceAlbums: ref
-                        .read(galleryProvider)
-                        .mergedAlbumSources[album.id] ?? [],
-                    onTap: () => _openAlbum(album),
-                  ),
-                );
-              },
-            ),
+          : gridBody,
     );
   }
 
@@ -233,14 +311,108 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     final gridColumns = ref.watch(
       galleryProvider.select((s) => s.gridColumns),
     );
+    final observer = widget.navbarObserver;
+
+    Widget albumContent;
+    if (_isLoadingAlbum) {
+      albumContent = const Center(child: CircularProgressIndicator());
+    } else if (_filteredAlbumAssets.isEmpty) {
+      albumContent = const Center(
+        child: Text(
+          'No photos in this album',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    } else {
+      albumContent = Listener(
+        onPointerDown: (event) {
+          _pointers[event.pointer] = event.position;
+          if (_pointers.length == 2) {
+            ref.read(isPinchingProvider.notifier).state = true;
+            final pts = _pointers.values.toList();
+            _scaleStart = (pts[0] - pts[1]).distance;
+          }
+        },
+        onPointerMove: (event) {
+          _pointers[event.pointer] = event.position;
+          if (_pointers.length == 2) {
+            final pts = _pointers.values.toList();
+            final currentDist = (pts[0] - pts[1]).distance;
+            if (_scaleStart > 0) {
+              final scale = currentDist / _scaleStart;
+              final notifier = ref.read(galleryProvider.notifier);
+              final current = ref.read(galleryProvider).gridColumns;
+
+              if (scale > 1.225) {
+                final newColumns = current - 1;
+                if (newColumns >= 3 && newColumns != current) {
+                  HapticFeedback.lightImpact();
+                  notifier.setGridColumns(newColumns);
+                  _scaleStart = currentDist;
+                }
+              } else if (scale < 0.775) {
+                final newColumns = current + 1;
+                if (newColumns <= 6 && newColumns != current) {
+                  HapticFeedback.lightImpact();
+                  notifier.setGridColumns(newColumns);
+                  _scaleStart = currentDist;
+                }
+              }
+            }
+          }
+        },
+        onPointerUp: (event) {
+          _pointers.remove(event.pointer);
+          if (_pointers.length < 2) {
+            _scaleStart = 0;
+            ref.read(isPinchingProvider.notifier).state = false;
+          }
+        },
+        onPointerCancel: (event) {
+          _pointers.remove(event.pointer);
+          if (_pointers.length < 2) {
+            _scaleStart = 0;
+            ref.read(isPinchingProvider.notifier).state = false;
+          }
+        },
+        child: MonthlyGallery(
+          assets: _filteredAlbumAssets,
+          columns: gridColumns,
+          selectedAssetIds: _albumSelectedIds,
+          isSelectionMode: _albumSelectionMode,
+          favoriteIds: ref.read(galleryProvider).favoriteIds,
+          collapsedMonths: _albumCollapsedMonths,
+          onCollapsedMonthsChanged: (months) {
+            setState(() => _albumCollapsedMonths
+              ..clear()
+              ..addAll(months));
+          },
+          prefetcher: _albumPrefetcher,
+          onToggleSelection: _toggleAlbumSelection,
+          onSetSelection: _setAlbumSelection,
+          onEnterSelectionMode: _enterAlbumSelectionMode,
+          externalScrollController: _albumDetailScrollController,
+        ),
+      );
+
+      if (observer != null) {
+        albumContent = NavbarAwareScrollWrapper(
+          scrollController: _albumDetailScrollController,
+          observer: observer,
+          child: albumContent,
+        );
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _selectedAlbum != null
-              ? ref.read(galleryProvider).getAlbumDisplayName(_selectedAlbum!)
-              : 'Album',
-        ),
+        title: _albumSelectionMode
+            ? Text('${_albumSelectedIds.length} selected')
+            : Text(
+                _selectedAlbum != null
+                    ? ref.read(galleryProvider).getAlbumDisplayName(_selectedAlbum!)
+                    : 'Album',
+              ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -251,95 +423,222 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
               _selectedAlbum = null;
               _albumAssets = [];
               _albumCollapsedMonths.clear();
+              _albumSelectedIds.clear();
+              _albumSelectionMode = false;
             });
           },
         ),
-        actions: [],
+        actions: [
+          if (_albumSelectionMode)
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: _exitAlbumSelectionMode,
+            ),
+        ],
       ),
+      bottomNavigationBar: _albumSelectionMode
+          ? _AlbumMultiSelectBar(
+              selectedCount: _albumSelectedIds.length,
+              onExit: _exitAlbumSelectionMode,
+              onSelectAll: _selectAllAlbum,
+              onShare: () => _shareAlbumSelected(),
+              onDelete: () => _deleteAlbumSelected(),
+              onVault: () => _moveAlbumSelectedToVault(),
+            )
+          : null,
       body: Column(
         children: [
           _buildAlbumTypeFilterChips(),
-          Expanded(
-            child: _isLoadingAlbum
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredAlbumAssets.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No photos in this album',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      )
-                    : Listener(
-                        onPointerDown: (event) {
-                          _pointers[event.pointer] = event.position;
-                          if (_pointers.length == 2) {
-                            ref.read(isPinchingProvider.notifier).state = true;
-                            final pts = _pointers.values.toList();
-                            _scaleStart = (pts[0] - pts[1]).distance;
-                          }
-                        },
-                        onPointerMove: (event) {
-                          _pointers[event.pointer] = event.position;
-                          if (_pointers.length == 2) {
-                            final pts = _pointers.values.toList();
-                            final currentDist = (pts[0] - pts[1]).distance;
-                            if (_scaleStart > 0) {
-                              final scale = currentDist / _scaleStart;
-                              final notifier = ref.read(galleryProvider.notifier);
-                              final current = ref.read(galleryProvider).gridColumns;
+          Expanded(child: albumContent),
+        ],
+      ),
+    );
+  }
 
-                              if (scale > 1.225) {
-                                final newColumns = current - 1;
-                                if (newColumns >= 3 && newColumns != current) {
-                                  HapticFeedback.lightImpact();
-                                  notifier.setGridColumns(newColumns);
-                                  _scaleStart = currentDist;
-                                }
-                              } else if (scale < 0.775) {
-                                final newColumns = current + 1;
-                                if (newColumns <= 6 && newColumns != current) {
-                                  HapticFeedback.lightImpact();
-                                  notifier.setGridColumns(newColumns);
-                                  _scaleStart = currentDist;
-                                }
-                              }
-                            }
-                          }
-                        },
-                        onPointerUp: (event) {
-                          _pointers.remove(event.pointer);
-                          if (_pointers.length < 2) {
-                            _scaleStart = 0;
-                            ref.read(isPinchingProvider.notifier).state = false;
-                          }
-                        },
-                        onPointerCancel: (event) {
-                          _pointers.remove(event.pointer);
-                          if (_pointers.length < 2) {
-                            _scaleStart = 0;
-                            ref.read(isPinchingProvider.notifier).state = false;
-                          }
-                        },
-                        child: MonthlyGallery(
-                          assets: _filteredAlbumAssets,
-                          columns: gridColumns,
-                          collapsedMonths: _albumCollapsedMonths,
-                          onCollapsedMonthsChanged: (months) {
-                            setState(() => _albumCollapsedMonths
-                              ..clear()
-                              ..addAll(months));
-                          },
-                          prefetcher: _albumPrefetcher,
-                          onToggleSelection: (id) =>
-                              ref.read(galleryProvider.notifier).toggleSelection(id),
-                          onSetSelection: (ids) =>
-                              ref.read(galleryProvider.notifier).setSelection(ids),
-                          onEnterSelectionMode: () =>
-                              ref.read(galleryProvider.notifier).enterSelectionMode(),
-                        ),
-                      ),
+  Future<void> _shareAlbumSelected() async {
+    final assets = _albumSelectedAssets;
+    final paths = <String>[];
+    for (final asset in assets) {
+      final file = await asset.file;
+      if (file != null) paths.add(file.path);
+    }
+    if (paths.isNotEmpty) {
+      await Share.shareXFiles(
+        paths.map((path) => XFile(path)).toList(),
+        text: '${paths.length} items',
+      );
+    }
+    _exitAlbumSelectionMode();
+  }
+
+  Future<void> _deleteAlbumSelected() async {
+    final confirmed = await ConfirmDeleteDialog.show(
+      context,
+      title: 'Delete Items?',
+    );
+    if (confirmed == true) {
+      final assets = _albumSelectedAssets;
+      try {
+        await TrashService().deleteMultipleWithTrash(assets);
+      } catch (_) {}
+      _exitAlbumSelectionMode();
+      _openAlbum(_selectedAlbum!);
+    }
+  }
+
+  Future<void> _moveAlbumSelectedToVault() async {
+    final assets = _albumSelectedAssets;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final vaultDir = Directory(p.join(appDir.path, 'vault'));
+      if (!await vaultDir.exists()) {
+        await vaultDir.create(recursive: true);
+      }
+      final db = GallerioDatabase();
+      int count = 0;
+      for (final asset in assets) {
+        final file = await asset.file;
+        if (file == null) continue;
+        final vaultName = generateVaultName();
+        final ext = p.extension(file.path);
+        final vaultPath = p.join(vaultDir.path, '$vaultName$ext');
+        await file.copy(vaultPath);
+        final name = asset.title ?? 'Photo';
+        await db.insertVaultItem(VaultItem(
+          id: 0,
+          name: name,
+          encryptedPath: vaultPath,
+          originalName: name,
+          mimeType: asset.type == AssetType.video ? 'video' : 'image',
+          size: 0,
+          dateAdded: DateTime.now(),
+          dateModified: DateTime.now(),
+          album: 'Imported',
+          iv: '',
+        ));
+        count++;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$count items moved to vault')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to move to vault')),
+        );
+      }
+    }
+    _exitAlbumSelectionMode();
+  }
+}
+
+class _AlbumMultiSelectBar extends StatelessWidget {
+  final int selectedCount;
+  final VoidCallback onExit;
+  final VoidCallback onSelectAll;
+  final VoidCallback onShare;
+  final VoidCallback onDelete;
+  final VoidCallback onVault;
+
+  const _AlbumMultiSelectBar({
+    required this.selectedCount,
+    required this.onExit,
+    required this.onSelectAll,
+    required this.onShare,
+    required this.onDelete,
+    required this.onVault,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColors.navBarBackground,
+        border: Border(
+          top: BorderSide(
+            color: colorScheme.primary.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white70),
+            onPressed: onExit,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '$selectedCount',
+              style: TextStyle(
+                color: colorScheme.primary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const Spacer(),
+          _AlbumActionButton(
+            icon: Icons.select_all,
+            label: 'All',
+            onTap: onSelectAll,
+          ),
+          _AlbumActionButton(
+            icon: Icons.share,
+            label: 'Share',
+            onTap: onShare,
+          ),
+          _AlbumActionButton(
+            icon: Icons.delete_outline,
+            label: 'Delete',
+            onTap: onDelete,
+          ),
+          _AlbumActionButton(
+            icon: Icons.lock,
+            label: 'Vault',
+            onTap: onVault,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AlbumActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _AlbumActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white70, size: 22),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white54, fontSize: 10),
+            ),
+          ],
+        ),
       ),
     );
   }

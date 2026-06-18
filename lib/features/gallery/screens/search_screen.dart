@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:photo_manager/photo_manager.dart';
+import '../../../app/router.dart';
 import '../../../app/theme.dart';
 import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/navbar_scroll_observer.dart';
 import '../providers/gallery_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../app/shell_screen.dart';
@@ -14,7 +15,8 @@ import '../widgets/shimmer_loading.dart';
 import '../widgets/gallery_thumbnail.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  final NavbarScrollObserver? navbarObserver;
+  const SearchScreen({super.key, this.navbarObserver});
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -115,7 +117,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       if (verified && mounted) {
         _controller.clear();
         setState(() {});
-        context.push('/vault');
+        AppNavigator.goToVault(context);
         return;
       }
     }
@@ -180,18 +182,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         children: [
           _buildFilterChips(),
           Expanded(
-            child: query.isEmpty
-                ? _showFavoritesOnly
-                    ? _buildFavoritesSection()
-                    : _buildRecentlyViewedSection(recentlyViewed)
-                : isLoading && _searchResults.isEmpty
-                    ? const ShimmerSearchLoading()
-                    : _searchResults.isEmpty
-                        ? const EmptyState(
-                            icon: Icons.search_off,
-                            message: 'No results',
-                          )
-                        : _buildResultsGrid(_searchResults),
+            child: () {
+              final observer = widget.navbarObserver;
+              Widget content = query.isEmpty
+                  ? _showFavoritesOnly
+                      ? _buildFavoritesSection()
+                      : _buildRecentlyViewedSection(recentlyViewed)
+                  : isLoading && _searchResults.isEmpty
+                      ? const ShimmerSearchLoading()
+                      : _searchResults.isEmpty
+                          ? const EmptyState(
+                              icon: Icons.search_off,
+                              message: 'No results',
+                            )
+                          : _buildResultsGrid(_searchResults);
+              if (observer != null) {
+                content = NavbarAwareScrollWrapper(
+                  scrollController: _scrollController,
+                  observer: observer,
+                  child: content,
+                );
+              }
+              return content;
+            }(),
           ),
         ],
       ),
@@ -352,12 +365,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   .read(galleryProvider.notifier)
                                   .addToRecentlyViewed(row[i]);
                               final flatIndex = recentlyViewed.indexOf(row[i]);
-                              context.push('/viewer', extra: {
-                                'assetId': row[i].id,
-                                'title': row[i].title ?? 'Photo',
-                                'assetIds': recentlyViewed.map((a) => a.id).toList(),
-                                'initialIndex': flatIndex >= 0 ? flatIndex : 0,
-                              });
+                              AppNavigator.goToViewer(
+                                context,
+                                assetId: row[i].id,
+                                title: row[i].title ?? 'Photo',
+                                assetIds: recentlyViewed.map((a) => a.id).toList(),
+                                initialIndex: flatIndex >= 0 ? flatIndex : 0,
+                              );
                             },
                               child: AspectRatio(
                               aspectRatio: 1,
@@ -371,12 +385,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                       .read(galleryProvider.notifier)
                                       .addToRecentlyViewed(row[i]);
                                   final flatIndex = recentlyViewed.indexOf(row[i]);
-                                  context.push('/viewer', extra: {
-                                    'assetId': row[i].id,
-                                    'title': row[i].title ?? 'Photo',
-                                    'assetIds': recentlyViewed.map((a) => a.id).toList(),
-                                    'initialIndex': flatIndex >= 0 ? flatIndex : 0,
-                                  });
+                                  AppNavigator.goToViewer(
+                                    context,
+                                    assetId: row[i].id,
+                                    title: row[i].title ?? 'Photo',
+                                    assetIds: recentlyViewed.map((a) => a.id).toList(),
+                                    initialIndex: flatIndex >= 0 ? flatIndex : 0,
+                                  );
                                 },
                               ),
                             ),
@@ -446,12 +461,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           enableHero: true,
           onTap: () {
             ref.read(galleryProvider.notifier).addToRecentlyViewed(asset);
-            context.push('/viewer', extra: {
-              'assetId': asset.id,
-              'title': asset.title ?? 'Photo',
-              'assetIds': results.map((a) => a.id).toList(),
-              'initialIndex': index,
-            });
+            AppNavigator.goToViewer(
+              context,
+              assetId: asset.id,
+              title: asset.title ?? 'Photo',
+              assetIds: results.map((a) => a.id).toList(),
+              initialIndex: index,
+            );
           },
         );
       },

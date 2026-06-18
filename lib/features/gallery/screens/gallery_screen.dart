@@ -6,6 +6,7 @@ import '../../../app/theme.dart';
 import '../../../core/cache/thumbnail_prefetcher.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/gallery_scroll_handle.dart';
+import '../../../shared/widgets/navbar_scroll_observer.dart';
 import '../providers/gallery_provider.dart';
 import '../widgets/monthly_gallery.dart';
 import '../widgets/shimmer_loading.dart';
@@ -13,7 +14,8 @@ import '../widgets/sort_sheet.dart';
 import '../widgets/multi_select_bar.dart';
 
 class GalleryScreen extends ConsumerStatefulWidget {
-  const GalleryScreen({super.key});
+  final NavbarScrollObserver? navbarObserver;
+  const GalleryScreen({super.key, this.navbarObserver});
 
   @override
   ConsumerState<GalleryScreen> createState() => _GalleryScreenState();
@@ -73,7 +75,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
       _prefetcher!.updateAssets(displayAssets);
     }
 
-    final content = Listener(
+    final observer = widget.navbarObserver;
+
+    Widget content = Listener(
       onPointerDown: (event) {
         _pointers[event.pointer] = event.position;
         if (_pointers.length == 2) {
@@ -158,6 +162,14 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
         ),
       ),
     );
+
+    if (observer != null) {
+      content = NavbarAwareScrollWrapper(
+        scrollController: _scrollController,
+        observer: observer,
+        child: content,
+      );
+    }
 
     if (isPinching) return content;
 
