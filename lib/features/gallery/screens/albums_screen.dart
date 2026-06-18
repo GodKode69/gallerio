@@ -49,15 +49,26 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
   void initState() {
     super.initState();
     resetAlbumDetail.addListener(_onResetAlbumDetail);
+    albumHasSelection.addListener(_onAlbumSelectionCleared);
   }
 
   @override
   void dispose() {
     resetAlbumDetail.removeListener(_onResetAlbumDetail);
+    albumHasSelection.removeListener(_onAlbumSelectionCleared);
     _albumPrefetcher?.dispose();
     _albumScrollController.dispose();
     _albumDetailScrollController.dispose();
     super.dispose();
+  }
+
+  void _onAlbumSelectionCleared() {
+    if (!albumHasSelection.value && _albumSelectionMode) {
+      setState(() {
+        _albumSelectedIds.clear();
+        _albumSelectionMode = false;
+      });
+    }
   }
 
   void _onResetAlbumDetail() {
@@ -685,14 +696,24 @@ class _AlbumCardState extends State<AlbumCard> {
       _thumbnailFuture = _loadMergedThumbnails();
       _countFuture = _loadMergedCount();
     } else {
-      _thumbnailFuture = widget.album.getAssetListPaged(page: 0, size: 4);
+      _thumbnailFuture = _loadSingleAlbumThumbnails();
       _countFuture = widget.album.assetCountAsync;
     }
   }
 
+  Future<List<AssetEntity>> _loadSingleAlbumThumbnails() async {
+    final count = await widget.album.assetCountAsync;
+    if (count == 0) return [];
+    final assets = await widget.album.getAssetListRange(start: 0, end: count);
+    assets.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
+    return assets.take(4).toList();
+  }
+
   Future<List<AssetEntity>> _loadMergedThumbnails() async {
     final futures = widget.sourceAlbums.map((src) async {
-      return src.getAssetListPaged(page: 0, size: 4);
+      final count = await src.assetCountAsync;
+      if (count == 0) return <AssetEntity>[];
+      return src.getAssetListRange(start: 0, end: count);
     });
     final results = await Future.wait(futures);
     final allAssets = results.expand((list) => list).toList();
