@@ -18,6 +18,7 @@ class MonthlyGallery extends StatefulWidget {
   final Set<String> selectedAssetIds;
   final bool isSelectionMode;
   final Set<String> favoriteIds;
+  final Set<String> collapsedMonths;
   final ValueChanged<String>? onToggleSelection;
   final ValueChanged<Set<String>>? onSetSelection;
   final VoidCallback? onEnterSelectionMode;
@@ -30,6 +31,7 @@ class MonthlyGallery extends StatefulWidget {
   const MonthlyGallery({
     super.key,
     required this.assets,
+    required this.collapsedMonths,
     this.columns = 5,
     this.selectedAssetIds = const {},
     this.isSelectionMode = false,
@@ -52,7 +54,6 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
   late ScrollController _scrollController;
   List<_ListItem>? _cachedItems;
   List<AssetEntity>? _lastAssets;
-  final Set<String> _collapsedMonths = {};
 
   int _dragStartIndex = -1;
   bool _isDragging = false;
@@ -251,16 +252,15 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
   }
 
   void _toggleMonthCollapse(String monthKey) {
-    setState(() {
-      if (_collapsedMonths.contains(monthKey)) {
-        _collapsedMonths.remove(monthKey);
-      } else {
-        _collapsedMonths.add(monthKey);
-      }
-      _cachedItems = null;
-      _lastAssets = null;
-    });
-    widget.onCollapsedMonthsChanged?.call(Set<String>.from(_collapsedMonths));
+    final newCollapsed = Set<String>.from(widget.collapsedMonths);
+    if (newCollapsed.contains(monthKey)) {
+      newCollapsed.remove(monthKey);
+    } else {
+      newCollapsed.add(monthKey);
+    }
+    _cachedItems = null;
+    _lastAssets = null;
+    widget.onCollapsedMonthsChanged?.call(newCollapsed);
   }
 
   @override
@@ -429,7 +429,7 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
     for (final month in sortedMonths) {
       final monthAssets = grouped[month]!;
       final monthKeyStr = DateFormat('yyyy-MM').format(month);
-      final isCollapsed = _collapsedMonths.contains(monthKeyStr);
+      final isCollapsed = widget.collapsedMonths.contains(monthKeyStr);
 
       items.add(_HeaderItem(
         month: DateFormat('MMM yyyy').format(month),

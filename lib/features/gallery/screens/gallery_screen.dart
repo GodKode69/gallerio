@@ -27,6 +27,7 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   ThumbnailPrefetcher? _prefetcher;
   List<AssetEntity>? _lastDisplayAssets;
   List<MonthSection> _sections = [];
+  Set<String> _collapsedMonths = {};
 
   @override
   void initState() {
@@ -149,7 +150,10 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
               ref.read(galleryProvider.notifier).enterSelectionMode(),
           externalScrollController: _scrollController,
           prefetcher: _prefetcher,
-          onCollapsedMonthsChanged: (months) {},
+          collapsedMonths: _collapsedMonths,
+          onCollapsedMonthsChanged: (months) {
+            setState(() => _collapsedMonths = months);
+          },
           onSectionsBuilt: (sections) {
             if (!_sectionsEquals(_sections, sections)) {
               setState(() => _sections = sections);
