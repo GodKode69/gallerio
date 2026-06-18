@@ -52,9 +52,9 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   bool _isFavorite = false;
 
-  double _imageScale = 1.0;
+  final ValueNotifier<double> _imageScaleNotifier = ValueNotifier(1.0);
   double _baseScale = 1.0;
-  Offset _imageOffset = Offset.zero;
+  final ValueNotifier<Offset> _imageOffsetNotifier = ValueNotifier(Offset.zero);
   final Map<int, Offset> _pointers = {};
   bool _isScaling = false;
   double _initialPinchDistance = 0;
@@ -98,16 +98,16 @@ class _ViewerScreenState extends State<ViewerScreen>
     _zoomController.dispose();
     _pageController.dispose();
     _fadeController.dispose();
+    _imageScaleNotifier.dispose();
+    _imageOffsetNotifier.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
   void _onZoomTick() {
     if (_zoomAnimation != null && mounted) {
-      setState(() {
-        _imageScale = _zoomAnimation!.value;
-        _imageOffset = _clampOffset(_imageOffset);
-      });
+      _imageScaleNotifier.value = _zoomAnimation!.value;
+      _imageOffsetNotifier.value = _clampOffset(_imageOffsetNotifier.value);
     }
   }
 
@@ -151,7 +151,7 @@ class _ViewerScreenState extends State<ViewerScreen>
     _isPanning = false;
     _tapCount++;
     _tapTimer?.cancel();
-    _tapTimer = Timer(const Duration(milliseconds: 300), _resolveTap);
+    _tapTimer = Timer(const Duration(milliseconds: 150), _resolveTap);
   }
 
   void _resolveTap() {
@@ -185,27 +185,25 @@ class _ViewerScreenState extends State<ViewerScreen>
 
   void _animateToZoom(double target) {
     _zoomController.stop();
-    _zoomAnimation = Tween<double>(begin: _imageScale, end: target).animate(
+    _zoomAnimation = Tween<double>(begin: _imageScaleNotifier.value, end: target).animate(
       CurvedAnimation(parent: _zoomController, curve: Curves.easeOutCubic),
     );
     _zoomController.forward(from: 0.0);
   }
 
   void _resetZoom() {
-    if (_imageScale == 1.0 && _imageOffset == Offset.zero) return;
+    if (_imageScaleNotifier.value == 1.0 && _imageOffsetNotifier.value == Offset.zero) return;
     _zoomController.stop();
-    final startScale = _imageScale;
-    final startOffset = _imageOffset;
+    final startScale = _imageScaleNotifier.value;
+    final startOffset = _imageOffsetNotifier.value;
     _zoomAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _zoomController, curve: Curves.easeOutCubic),
     );
     void resetListener() {
       if (mounted) {
         final t = _zoomAnimation!.value;
-        setState(() {
-          _imageScale = startScale + (1.0 - startScale) * t;
-          _imageOffset = startOffset * (1.0 - t);
-        });
+        _imageScaleNotifier.value = startScale + (1.0 - startScale) * t;
+        _imageOffsetNotifier.value = startOffset * (1.0 - t);
       }
     }
     _zoomController.removeListener(_onZoomTick);
@@ -213,8 +211,8 @@ class _ViewerScreenState extends State<ViewerScreen>
     _zoomController.forward(from: 0.0).then((_) {
       _zoomController.removeListener(resetListener);
       _zoomController.addListener(_onZoomTick);
-      _imageScale = 1.0;
-      _imageOffset = Offset.zero;
+      _imageScaleNotifier.value = 1.0;
+      _imageOffsetNotifier.value = Offset.zero;
       _zoomIndex = 0;
       setState(() {});
     });
@@ -227,7 +225,7 @@ class _ViewerScreenState extends State<ViewerScreen>
       _isScaling = true;
       _tapTimer?.cancel();
       _tapCount = 0;
-      _baseScale = _imageScale;
+      _baseScale = _imageScaleNotifier.value;
       final pts = _pointers.values.toList();
       _initialPinchDistance = (pts[0] - pts[1]).distance;
     }
@@ -241,11 +239,9 @@ class _ViewerScreenState extends State<ViewerScreen>
       final pts = _pointers.values.toList();
       final currentDist = (pts[0] - pts[1]).distance;
       final newScale = (_baseScale * currentDist / _initialPinchDistance).clamp(1.0, 4.0);
-      setState(() {
-        _imageScale = newScale;
-        _imageOffset = _clampOffset(_imageOffset);
-      });
-    } else if (_pointers.length == 1 && _imageScale > 1.01) {
+      _imageScaleNotifier.value = newScale;
+      _imageOffsetNotifier.value = _clampOffset(_imageOffsetNotifier.value);
+    } else if (_pointers.length == 1 && _imageScaleNotifier.value > 1.01) {
       if (_pointerDownPosition != null) {
         final dist = (event.localPosition - _pointerDownPosition!).distance;
         if (dist > _panSlop && !_isPanning) {
@@ -253,17 +249,14 @@ class _ViewerScreenState extends State<ViewerScreen>
           _tapTimer?.cancel();
         }
       }
-      setState(() {
-        _imageOffset += event.delta;
-        _imageOffset = _clampOffset(_imageOffset);
-      });
+      _imageOffsetNotifier.value = _clampOffset(_imageOffsetNotifier.value + event.delta);
     }
   }
 
   Offset _clampOffset(Offset offset) {
     final viewSize = MediaQuery.of(context).size;
-    final maxDx = (viewSize.width * (_imageScale - 1)) / 2;
-    final maxDy = (viewSize.height * (_imageScale - 1)) / 2;
+    final maxDx = (viewSize.width * (_imageScaleNotifier.value - 1)) / 2;
+    final maxDy = (viewSize.height * (_imageScaleNotifier.value - 1)) / 2;
     return Offset(
       offset.dx.clamp(-maxDx, maxDx),
       offset.dy.clamp(-maxDy, maxDy),
@@ -278,9 +271,9 @@ class _ViewerScreenState extends State<ViewerScreen>
     if (_pointers.isEmpty) {
       _isPanning = false;
       _pointerDownPosition = null;
-      if (_imageScale <= 1.01) {
-        _imageScale = 1.0;
-        _imageOffset = Offset.zero;
+      if (_imageScaleNotifier.value <= 1.01) {
+        _imageScaleNotifier.value = 1.0;
+        _imageOffsetNotifier.value = Offset.zero;
         _zoomIndex = 0;
         setState(() {});
       }
@@ -301,11 +294,17 @@ class _ViewerScreenState extends State<ViewerScreen>
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onTapDown: _handleTapDown,
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.identity()
-                  ..translateByDouble(_imageOffset.dx, _imageOffset.dy, 0.0, 1.0)
-                  ..scaleByDouble(_imageScale, _imageScale, 1.0, 1.0),
+              child: ListenableBuilder(
+                listenable: Listenable.merge([_imageScaleNotifier, _imageOffsetNotifier]),
+                builder: (context, child) {
+                  return Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()
+                      ..translateByDouble(_imageOffsetNotifier.value.dx, _imageOffsetNotifier.value.dy, 0.0, 1.0)
+                      ..scaleByDouble(_imageScaleNotifier.value, _imageScaleNotifier.value, 1.0, 1.0),
+                    child: child,
+                  );
+                },
                 child: _hasSliding ? _buildPageView() : _buildSingleContent(),
               ),
             ),
@@ -319,7 +318,7 @@ class _ViewerScreenState extends State<ViewerScreen>
   Widget _buildPageView() {
     return PageView.builder(
       controller: _pageController,
-      physics: _imageScale > 1.01
+      physics: _imageScaleNotifier.value > 1.01
           ? const NeverScrollableScrollPhysics()
           : null,
       itemCount: widget.assetIds!.length,

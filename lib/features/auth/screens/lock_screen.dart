@@ -134,6 +134,7 @@ class _LockScreenState extends ConsumerState<LockScreen>
 
     final state = ref.read(authStateProvider);
     if (state.isUnlocked) {
+      _lockoutTimer?.cancel();
       AppNavigator.goToGallery(context);
     } else if (state.error != null) {
       _shakeController.forward(from: 0);

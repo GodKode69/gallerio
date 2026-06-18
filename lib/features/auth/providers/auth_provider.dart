@@ -114,7 +114,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     final verified = await _security.verifyPin(pin);
     if (verified) {
-      state = state.copyWith(isUnlocked: true);
+      state = state.copyWith(isUnlocked: true, lockoutSeconds: 0, failedAttempts: 0);
     } else {
       final attempts = await _security.getFailedAttempts();
       final remaining = await _security.getRemainingLockoutSeconds();

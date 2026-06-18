@@ -158,19 +158,6 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
 
-    ref.listen<AuthState>(authStateProvider, (prev, next) {
-      if (next.isUnlocked &&
-          next.isPinSet &&
-          (prev?.isLoading ?? false) &&
-          !next.isLoading) {
-        if (AppNavigator.canPop(context)) {
-          AppNavigator.pop(context);
-        } else {
-          AppNavigator.goToGallery(context);
-        }
-      }
-    });
-
     final displayError = _error ?? authState.error;
 
     return Scaffold(

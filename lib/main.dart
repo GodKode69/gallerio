@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/shell_screen.dart';
 import 'app/theme.dart';
+import 'core/security/security_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/lock_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SecurityService().preloadCache();
   runApp(const ProviderScope(child: GallerioApp()));
 }
 

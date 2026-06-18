@@ -1,9 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+String _hashValueSync(String value, List<int> saltBytes) {
+  final salt = Uint8List.fromList(saltBytes);
+  final hmac = Hmac(sha256, utf8.encode(value));
+  final blockIndexBytes = Uint8List(4)
+    ..buffer.asByteData().setUint32(0, 1, Endian.big);
+  var u = hmac.convert([...salt, ...blockIndexBytes]).bytes;
+  final result = Uint8List.fromList(u);
+  for (int i = 1; i < 10000; i++) {
+    u = hmac.convert(u).bytes;
+    for (int j = 0; j < result.length; j++) {
+      result[j] ^= u[j];
+    }
+  }
+  return base64Encode(result);
+}
 
 class SecurityService {
   static const _pinHashKey = 'gallerio_pin_hash';
@@ -22,15 +40,46 @@ class SecurityService {
   static const _shortLockout = Duration(seconds: 30);
   static const _longLockout = Duration(hours: 1);
 
-  SecurityService({FlutterSecureStorage? storage})
+  static final SecurityService _instance = SecurityService._internal();
+  factory SecurityService() => _instance;
+  SecurityService._internal({FlutterSecureStorage? storage})
       : _storage = storage ?? const FlutterSecureStorage();
+
+  String? _cachedPinHash;
+  Uint8List? _cachedPinSalt;
+  String? _cachedVaultCodeHash;
+  Uint8List? _cachedVaultCodeSalt;
+
+  Future<void> preloadCache() async {
+    try {
+      final pinHash = await _storage.read(key: _pinHashKey);
+      final pinSaltB64 = await _storage.read(key: _pinSaltKey);
+      if (pinHash != null && pinSaltB64 != null) {
+        _cachedPinHash = pinHash;
+        _cachedPinSalt = base64Decode(pinSaltB64);
+      }
+      final vcHash = await _storage.read(key: _vaultCodeHashKey);
+      final vcSaltB64 = await _storage.read(key: _vaultCodeSaltKey);
+      if (vcHash != null && vcSaltB64 != null) {
+        _cachedVaultCodeHash = vcHash;
+        _cachedVaultCodeSalt = base64Decode(vcSaltB64);
+      }
+    } catch (_) {}
+  }
+
+  Future<String> _hashInBackground(String value, Uint8List salt) {
+    return Isolate.run(() => _hashValueSync(value, salt));
+  }
 
   Future<void> setupPin(String pin) async {
     if (pin.length < 4 || pin.length > 6) {
       throw Exception('PIN must be 4-6 digits');
     }
     final salt = _generateSalt();
-    final hash = await _hashValue(pin, salt);
+    final hash = await _hashInBackground(pin, salt);
+
+    _cachedPinHash = hash;
+    _cachedPinSalt = salt;
 
     await _storage.write(key: _pinHashKey, value: hash);
     await _storage.write(
@@ -48,13 +97,19 @@ class SecurityService {
       return false;
     }
 
-    final storedHash = await _storage.read(key: _pinHashKey);
-    final saltBase64 = await _storage.read(key: _pinSaltKey);
+    String? storedHash = _cachedPinHash;
+    Uint8List? salt = _cachedPinSalt;
 
-    if (storedHash == null || saltBase64 == null) return false;
+    if (storedHash == null || salt == null) {
+      storedHash = await _storage.read(key: _pinHashKey);
+      final saltBase64 = await _storage.read(key: _pinSaltKey);
+      if (storedHash == null || saltBase64 == null) return false;
+      salt = base64Decode(saltBase64);
+      _cachedPinHash = storedHash;
+      _cachedPinSalt = salt;
+    }
 
-    final salt = base64Decode(saltBase64);
-    final hash = await _hashValue(pin, salt);
+    final hash = await _hashInBackground(pin, salt);
 
     if (hash == storedHash) {
       await _storage.write(key: _failedAttemptsKey, value: '0');
@@ -67,6 +122,7 @@ class SecurityService {
   }
 
   Future<bool> isPinSet() async {
+    if (_cachedPinHash != null) return true;
     final hash = await _storage.read(key: _pinHashKey);
     return hash != null && hash.isNotEmpty;
   }
@@ -78,6 +134,8 @@ class SecurityService {
   }
 
   Future<void> removePin() async {
+    _cachedPinHash = null;
+    _cachedPinSalt = null;
     await _storage.delete(key: _pinHashKey);
     await _storage.delete(key: _pinSaltKey);
     await _storage.delete(key: _failedAttemptsKey);
@@ -85,6 +143,7 @@ class SecurityService {
   }
 
   Future<bool> hasVaultCode() async {
+    if (_cachedVaultCodeHash != null) return true;
     final hash = await _storage.read(key: _vaultCodeHashKey);
     return hash != null && hash.isNotEmpty;
   }
@@ -97,13 +156,19 @@ class SecurityService {
       return false;
     }
 
-    final storedHash = await _storage.read(key: _vaultCodeHashKey);
-    final saltBase64 = await _storage.read(key: _vaultCodeSaltKey);
+    String? storedHash = _cachedVaultCodeHash;
+    Uint8List? salt = _cachedVaultCodeSalt;
 
-    if (storedHash == null || saltBase64 == null) return false;
+    if (storedHash == null || salt == null) {
+      storedHash = await _storage.read(key: _vaultCodeHashKey);
+      final saltBase64 = await _storage.read(key: _vaultCodeSaltKey);
+      if (storedHash == null || saltBase64 == null) return false;
+      salt = base64Decode(saltBase64);
+      _cachedVaultCodeHash = storedHash;
+      _cachedVaultCodeSalt = salt;
+    }
 
-    final salt = base64Decode(saltBase64);
-    final hash = await _hashValue(code, salt);
+    final hash = await _hashInBackground(code, salt);
 
     if (hash == storedHash) {
       await _storage.write(key: _vaultCodeFailedAttemptsKey, value: '0');
@@ -120,7 +185,10 @@ class SecurityService {
       throw Exception('Vault code must be at least 3 characters');
     }
     final salt = _generateSalt();
-    final hash = await _hashValue(code, salt);
+    final hash = await _hashInBackground(code, salt);
+
+    _cachedVaultCodeHash = hash;
+    _cachedVaultCodeSalt = salt;
 
     await _storage.write(key: _vaultCodeHashKey, value: hash);
     await _storage.write(
@@ -130,6 +198,8 @@ class SecurityService {
   }
 
   Future<void> removeVaultCode() async {
+    _cachedVaultCodeHash = null;
+    _cachedVaultCodeSalt = null;
     await _storage.delete(key: _vaultCodeHashKey);
     await _storage.delete(key: _vaultCodeSaltKey);
   }
@@ -152,13 +222,13 @@ class SecurityService {
       value: newAttempts.toString(),
     );
 
-    final lockoutDuration =
-        newAttempts >= _maxFailedAttempts ? _longLockout : _shortLockout;
-    final lockoutUntil = DateTime.now().add(lockoutDuration);
-    await _storage.write(
-      key: _lockoutUntilKey,
-      value: lockoutUntil.toIso8601String(),
-    );
+    if (newAttempts >= _maxFailedAttempts) {
+      final lockoutUntil = DateTime.now().add(_shortLockout);
+      await _storage.write(
+        key: _lockoutUntilKey,
+        value: lockoutUntil.toIso8601String(),
+      );
+    }
   }
 
   Future<DateTime?> getLockoutUntil() async {
@@ -216,13 +286,13 @@ class SecurityService {
       value: newAttempts.toString(),
     );
 
-    final lockoutDuration =
-        newAttempts >= _maxFailedAttempts ? _longLockout : _shortLockout;
-    final lockoutUntil = DateTime.now().add(lockoutDuration);
-    await _storage.write(
-      key: _vaultCodeLockoutUntilKey,
-      value: lockoutUntil.toIso8601String(),
-    );
+    if (newAttempts >= _maxFailedAttempts) {
+      final lockoutUntil = DateTime.now().add(_shortLockout);
+      await _storage.write(
+        key: _vaultCodeLockoutUntilKey,
+        value: lockoutUntil.toIso8601String(),
+      );
+    }
   }
 
   Future<DateTime?> getVaultCodeLockoutUntil() async {
@@ -243,20 +313,5 @@ class SecurityService {
     return Uint8List.fromList(
       List<int>.generate(16, (_) => random.nextInt(256)),
     );
-  }
-
-  Future<String> _hashValue(String value, Uint8List salt) async {
-    final hmac = Hmac(sha256, utf8.encode(value));
-    final blockIndexBytes = Uint8List(4)
-      ..buffer.asByteData().setUint32(0, 1, Endian.big);
-    var u = hmac.convert([...salt, ...blockIndexBytes]).bytes;
-    final result = Uint8List.fromList(u);
-    for (int i = 1; i < 100000; i++) {
-      u = hmac.convert(u).bytes;
-      for (int j = 0; j < result.length; j++) {
-        result[j] ^= u[j];
-      }
-    }
-    return base64Encode(result);
   }
 }

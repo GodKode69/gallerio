@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -109,6 +111,7 @@ class GalleryState {
 
 class GalleryNotifier extends StateNotifier<GalleryState> {
   static const int _maxRecentlyViewed = 50;
+  Timer? _gridColumnsSaveTimer;
 
   GalleryNotifier() : super(const GalleryState()) {
     init();
@@ -506,7 +509,10 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   Future<void> setGridColumns(int columns) async {
     final clamped = columns.clamp(3, 6);
     state = state.copyWith(gridColumns: clamped);
-    await _saveGridColumns(clamped);
+    _gridColumnsSaveTimer?.cancel();
+    _gridColumnsSaveTimer = Timer(const Duration(milliseconds: 500), () {
+      _saveGridColumns(clamped);
+    });
   }
 
   Future<void> _loadGridColumns() async {
