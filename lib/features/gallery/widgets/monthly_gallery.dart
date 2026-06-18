@@ -8,7 +8,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/gallery_scroll_handle.dart';
 import 'gallery_thumbnail.dart';
 
-const double _kHeaderHeight = 56.0;
+const double _kHeaderHeight = 48.0;
 const double _kAutoScrollEdgeZone = 80.0;
 const double _kAutoScrollMaxSpeed = 20.0;
 
@@ -289,8 +289,9 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
           if (item is _HeaderItem) {
             return GestureDetector(
               onTap: () => _toggleMonthCollapse(item.monthKey),
+              behavior: HitTestBehavior.opaque,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 20, 14, 12),
+                padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
                 child: Row(
                   children: [
                     Text(
@@ -302,10 +303,19 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Expanded(
-                      child: Container(
-                        height: 0.5,
-                        color: Colors.white24,
+                    const Expanded(
+                      child: SizedBox(
+                        height: 20,
+                        child: Align(
+                          alignment: Alignment.center,
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 0.5,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(color: Colors.white24),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
