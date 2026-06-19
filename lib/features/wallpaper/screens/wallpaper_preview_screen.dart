@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -43,7 +41,6 @@ class _WallpaperPreviewScreenState extends State<WallpaperPreviewScreen>
 
   late AnimationController _doubleTapController;
   Animation<double>? _doubleTapAnimation;
-  double _doubleTapBaseScale = 1.0;
 
   static const _minScale = 1.0;
   static const _maxScale = 5.0;
@@ -76,7 +73,6 @@ class _WallpaperPreviewScreenState extends State<WallpaperPreviewScreen>
 
   void _onDoubleTapDown(TapDownDetails details) {
     _doubleTapController.stop();
-    _doubleTapBaseScale = _scale;
     final target = _scale > 1.0 ? _minScale : 2.5;
     _doubleTapAnimation = Tween<double>(begin: _scale, end: target).animate(
       CurvedAnimation(parent: _doubleTapController, curve: Curves.easeOutCubic),
@@ -226,10 +222,10 @@ class _WallpaperPreviewScreenState extends State<WallpaperPreviewScreen>
                       icon: const Icon(Icons.arrow_back, color: Colors.white),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'Wallpaper Preview',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w500,

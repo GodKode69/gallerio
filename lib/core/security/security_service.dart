@@ -38,7 +38,6 @@ class SecurityService {
   final FlutterSecureStorage _storage;
   static const _maxFailedAttempts = 5;
   static const _shortLockout = Duration(seconds: 30);
-  static const _longLockout = Duration(hours: 1);
 
   static final SecurityService _instance = SecurityService._internal();
   factory SecurityService() => _instance;
