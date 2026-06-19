@@ -1,3 +1,14 @@
+# Aggressive R8 optimization
+-optimizationpasses 5
+-allowaccessmodification
+
+# Strip debug logging in release
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
 # Flutter MethodChannel
 -keep class com.arqora.gallerio.MainActivity { *; }
 

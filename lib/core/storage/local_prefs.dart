@@ -59,4 +59,23 @@ class LocalPrefs {
     _data.remove(key);
     await _save();
   }
+
+  Future<bool> getBool(String key) async {
+    await _getFile();
+    final val = _data[key];
+    if (val is bool) return val;
+    return false;
+  }
+
+  Future<void> setBool(String key, bool value) async {
+    await _getFile();
+    _data[key] = value;
+    await _save();
+  }
+
+  Future<bool> get hasCompletedOnboarding => getBool('onboarding_completed');
+
+  Future<void> completeOnboarding() => setBool('onboarding_completed', true);
+
+  Future<void> resetOnboarding() => setBool('onboarding_completed', false);
 }

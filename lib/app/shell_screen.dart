@@ -9,6 +9,7 @@ import '../features/gallery/screens/search_screen.dart';
 import '../features/settings/screens/convert_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/gallery/providers/gallery_provider.dart';
+import '../features/onboarding/screens/onboarding_overlay.dart';
 
 final searchFocusTrigger = ValueNotifier<int>(0);
 final resetAlbumDetail = ValueNotifier<int>(0);
@@ -58,11 +59,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
       const SettingsScreen(),
     ];
     _navbarObserver.addListener(_onNavbarOffsetChanged);
+    tutorialTabNotifier.addListener(_onTutorialTabRequest);
   }
 
   @override
   void dispose() {
     _navbarObserver.removeListener(_onNavbarOffsetChanged);
+    tutorialTabNotifier.removeListener(_onTutorialTabRequest);
     _navbarObserver.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
@@ -72,6 +75,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
 
   void _onNavbarOffsetChanged() {
     setState(() {});
+  }
+
+  void _onTutorialTabRequest() {
+    final tab = tutorialTabNotifier.value;
+    if (tab != _currentIndex) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      _switchTab(tab);
+    }
   }
 
   void _onDockChanged(NavbarDockState newState) {
@@ -141,30 +152,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     if (index == _currentIndex) return;
     FocusManager.instance.primaryFocus?.unfocus();
 
-    bool hadSelection = false;
-
     if (ref.read(galleryProvider).isSelectionMode) {
       ref.read(galleryProvider.notifier).exitSelectionMode();
-      hadSelection = true;
     }
 
     if (ref.read(isAlbumDetailProvider)) {
       ref.read(isAlbumDetailProvider.notifier).state = false;
       resetAlbumDetail.value++;
-      hadSelection = true;
-    }
-
-    if (hadSelection && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Selection cleared'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
-      });
     }
 
     _navbarObserver.reset();

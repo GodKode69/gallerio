@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../../app/router.dart';
 import '../../../app/theme.dart';
+import '../../../core/storage/local_prefs.dart';
+import '../../../main.dart';
 import '../../auth/providers/auth_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -66,7 +68,18 @@ class SettingsScreen extends ConsumerWidget {
           const _SettingsTile(
             icon: Icons.info_outline,
             title: 'Gallerio',
-            subtitle: 'Version 1.0.7',
+            subtitle: 'Version 1.0.8',
+          ),
+          _SettingsTile(
+            icon: Icons.help_outline,
+            title: 'Replay Tutorial',
+            subtitle: 'Learn how to use Gallerio',
+            onTap: () async {
+              await LocalPrefs().resetOnboarding();
+              if (context.mounted) {
+                ref.invalidate(onboardingCompletedProvider);
+              }
+            },
           ),
         ],
       ),
