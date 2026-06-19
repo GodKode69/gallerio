@@ -2,6 +2,7 @@ package com.arqora.gallerio
 
 import android.app.WallpaperManager
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -16,7 +17,8 @@ class MainActivity : FlutterFragmentActivity() {
     private fun isPathInAppSandbox(filePath: String): Boolean {
         val appDir = applicationInfo.dataDir ?: return false
         val canonicalPath = File(filePath).canonicalPath
-        return canonicalPath.startsWith(appDir)
+        val canonicalAppDir = File(appDir).canonicalPath
+        return canonicalPath.startsWith(canonicalAppDir)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -59,6 +61,7 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 "setWallpaper" -> {
                     val filePath = call.argument<String>("filePath")
+                    val target = call.argument<String>("target") ?: "both"
                     if (filePath == null) {
                         result.error("INVALID_PATH", "File path is null", null)
                     } else if (!isPathInAppSandbox(filePath)) {
@@ -69,14 +72,25 @@ class MainActivity : FlutterFragmentActivity() {
                             if (file.exists()) {
                                 val wallpaperManager = WallpaperManager.getInstance(this)
                                 val inputStream = file.inputStream()
-                                wallpaperManager.setStream(inputStream)
+                                val bitmap = BitmapFactory.decodeStream(inputStream)
                                 inputStream.close()
+                                if (bitmap == null) {
+                                    result.error("DECODE_FAILED", "Could not decode image", null)
+                                    return@setMethodCallHandler
+                                }
+                                val flags = when (target) {
+                                    "lock" -> WallpaperManager.FLAG_LOCK
+                                    "home" -> WallpaperManager.FLAG_SYSTEM
+                                    else -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+                                }
+                                wallpaperManager.setBitmap(bitmap, null, true, flags)
+                                bitmap.recycle()
                                 result.success(true)
                             } else {
                                 result.error("FILE_NOT_FOUND", "File not found", null)
                             }
-                        } catch (_: Exception) {
-                            result.error("ERROR", "Could not set wallpaper", null)
+                        } catch (e: Exception) {
+                            result.error("ERROR", "Could not set wallpaper: ${e.message}", null)
                         }
                     }
                 }

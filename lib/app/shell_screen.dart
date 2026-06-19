@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/widgets/gallerio_nav_bar.dart';
@@ -21,11 +22,13 @@ class ShellScreen extends ConsumerStatefulWidget {
 }
 
 class _ShellScreenState extends ConsumerState<ShellScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   int _currentIndex = 1;
   int? _previousIndex;
   late final PageController _pageController;
   final _navbarObserver = NavbarScrollObserver();
+  NavbarDockState _dockState = NavbarDockState.center;
+  late final AnimationController _dockAnim;
 
   late final List<Widget> _screens;
 
@@ -34,6 +37,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController(initialPage: _currentIndex);
+    _dockAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _dockAnim.addListener(() => setState(() {}));
+    _dockAnim.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed) {
+        setState(() {
+          _dockState = NavbarDockState.center;
+        });
+        _navbarObserver.setDocked(false);
+      }
+    });
     _screens = [
       AlbumsScreen(navbarObserver: _navbarObserver),
       GalleryScreen(navbarObserver: _navbarObserver),
@@ -50,11 +66,57 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     _navbarObserver.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
+    _dockAnim.dispose();
     super.dispose();
   }
 
   void _onNavbarOffsetChanged() {
     setState(() {});
+  }
+
+  void _onDockChanged(NavbarDockState newState) {
+    if (newState == NavbarDockState.center) {
+      _dockAnim.reverse();
+    } else {
+      _navbarObserver.setDocked(true);
+      setState(() {
+        _dockState = newState;
+      });
+      _dockAnim.forward();
+    }
+  }
+
+  void _resetDock() {
+    _navbarObserver.setDocked(false);
+    setState(() {
+      _dockState = NavbarDockState.center;
+    });
+    _dockAnim.value = 0;
+  }
+
+  void _onMenuTap(int index) {
+    if (index == _currentIndex) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    if (ref.read(galleryProvider).isSelectionMode) {
+      ref.read(galleryProvider.notifier).exitSelectionMode();
+    }
+    if (ref.read(isAlbumDetailProvider)) {
+      ref.read(isAlbumDetailProvider.notifier).state = false;
+      resetAlbumDetail.value++;
+    }
+
+    _navbarObserver.reset();
+
+    setState(() {
+      _previousIndex = _currentIndex;
+      _currentIndex = index;
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   @override
@@ -106,6 +168,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     }
 
     _navbarObserver.reset();
+    if (_dockState != NavbarDockState.center) {
+      _resetDock();
+    }
 
     setState(() {
       _previousIndex = _currentIndex;
@@ -122,9 +187,30 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
   Widget build(BuildContext context) {
     final isPinching = ref.watch(isPinchingProvider);
     final navbarOffset = _navbarObserver.offset;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final t = Curves.easeInOutCubic.transform(_dockAnim.value);
+
+    double navWidth;
+    double navLeft;
+
+    switch (_dockState) {
+      case NavbarDockState.dockedLeft:
+        navLeft = lerpDouble(0, 16, t)!;
+        navWidth = lerpDouble(screenWidth, 72, t)!;
+        break;
+      case NavbarDockState.dockedRight:
+        navLeft = lerpDouble(0, screenWidth - 72, t)!;
+        navWidth = lerpDouble(screenWidth, 72, t)!;
+        break;
+      case NavbarDockState.center:
+        navWidth = screenWidth;
+        navLeft = 0;
+        break;
+    }
 
     return Scaffold(
         body: Stack(
+          clipBehavior: Clip.none,
           children: [
             PageView.builder(
               controller: _pageController,
@@ -141,14 +227,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
               itemBuilder: (context, index) => _screens[index],
             ),
             Positioned(
-              left: 0,
-              right: 0,
+              left: navLeft,
               bottom: 0,
+              width: navWidth,
               child: Transform.translate(
                 offset: Offset(0, navbarOffset),
                 child: GallerioNavBar(
                   currentIndex: _currentIndex,
                   previousIndex: _previousIndex,
+                  dockState: _dockState,
+                  dockAnimValue: _dockAnim.value,
+                  onDock: _onDockChanged,
                   onTap: (index) {
                     if (index == _currentIndex) {
                       if (index == 2) {
@@ -158,6 +247,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
                     }
                     _switchTab(index);
                   },
+                  onMenuTap: _onMenuTap,
                 ),
               ),
             ),

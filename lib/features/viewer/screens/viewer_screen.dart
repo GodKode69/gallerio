@@ -8,6 +8,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../app/theme.dart';
+import '../../wallpaper/screens/wallpaper_preview_screen.dart';
 import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../shared/widgets/top_message.dart';
@@ -47,8 +48,6 @@ class _ViewerScreenState extends State<ViewerScreen>
   AssetEntity? _currentAsset;
 
   late AnimationController _fadeController;
-
-  static const _channel = MethodChannel('com.arqora.gallerio/open_file');
 
   bool _isFavorite = false;
 
@@ -596,20 +595,18 @@ class _ViewerScreenState extends State<ViewerScreen>
     try {
       final file = await _currentAsset!.file;
       if (file == null) return;
+      if (!mounted) return;
 
-      await _channel.invokeMethod('setWallpaper', {
-        'filePath': file.path,
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Setting wallpaper...')),
-        );
-      }
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => WallpaperPreviewScreen(
+          filePath: file.path,
+          title: _currentTitle,
+        ),
+      ));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not set wallpaper')),
+          const SnackBar(content: Text('Could not load image')),
         );
       }
     }

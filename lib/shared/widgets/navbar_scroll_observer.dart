@@ -8,10 +8,23 @@ class NavbarScrollObserver extends ChangeNotifier {
 
   double _previousScrollOffset = 0;
   bool _isTracking = false;
+  bool _isDocked = false;
+  bool get isDocked => _isDocked;
 
   bool get isHidden => _offset >= kNavbarHeight;
 
+  void setDocked(bool value) {
+    if (_isDocked == value) return;
+    _isDocked = value;
+    if (value) {
+      _offset = 0;
+    }
+    notifyListeners();
+  }
+
   void onScrollUpdate(double currentScrollOffset) {
+    if (_isDocked) return;
+
     if (!_isTracking) {
       _previousScrollOffset = currentScrollOffset;
       _isTracking = true;
@@ -37,6 +50,7 @@ class NavbarScrollObserver extends ChangeNotifier {
   }
 
   void onScrollEnd() {
+    if (_isDocked) return;
     _isTracking = false;
 
     if (_offset <= 0 || _offset >= kNavbarHeight) {
@@ -53,7 +67,7 @@ class NavbarScrollObserver extends ChangeNotifier {
   }
 
   void reset() {
-    if (_offset == 0) return;
+    if (_offset == 0 && !_isDocked) return;
     _offset = 0;
     _previousScrollOffset = 0;
     _isTracking = false;
