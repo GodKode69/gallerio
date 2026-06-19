@@ -65,16 +65,29 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
     super.initState();
     _scrollController = widget.externalScrollController ?? ScrollController();
     _scrollController.addListener(_onScrollForPrefetch);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _pushVisibleIds());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _pushVisibleIds();
+      _emitSections(_cachedItems ?? _buildFlatList(widget.assets));
+    });
+  }
+
+  bool _collapsedMonthsChanged(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return true;
+    return !a.containsAll(b);
   }
 
   @override
   void didUpdateWidget(covariant MonthlyGallery oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.assets, widget.assets) ||
-        oldWidget.columns != widget.columns) {
+        oldWidget.columns != widget.columns ||
+        _collapsedMonthsChanged(oldWidget.collapsedMonths, widget.collapsedMonths)) {
       _cachedItems = null;
       _lastAssets = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _emitSections(_cachedItems ?? _buildFlatList(widget.assets));
+      });
     }
   }
 
@@ -272,13 +285,13 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
     }
 
     final items = _buildFlatList(widget.assets);
-    _emitSections(items);
 
     return GestureDetector(
       onLongPressStart: (details) => _onDragStart(details.globalPosition, context),
       onLongPressMoveUpdate: (details) => _onDragUpdate(details.globalPosition, context),
       onLongPressEnd: (_) => _onDragEnd(),
       child: ListView.builder(
+        key: const PageStorageKey<String>('gallery_list'),
         controller: _scrollController,
         padding: const EdgeInsets.only(bottom: 20),
         itemCount: items.length,

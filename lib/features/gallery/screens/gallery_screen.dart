@@ -46,13 +46,15 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
   bool _sectionsEquals(List<MonthSection> a, List<MonthSection> b) {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
-      if (a[i].offset != b[i].offset || a[i].label != b[i].label) return false;
+      if ((a[i].offset - b[i].offset).abs() > 0.5 ||
+          a[i].label != b[i].label) {
+        return false;
+      }
     }
     return true;
   }
 
   Widget _buildBody(BuildContext context) {
-    final isPinching = ref.watch(isPinchingProvider);
     final displayAssets = ref.watch(
       galleryProvider.select((s) => s.displayAssets),
     );
@@ -170,8 +172,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
         child: content,
       );
     }
-
-    if (isPinching) return content;
 
     return RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
