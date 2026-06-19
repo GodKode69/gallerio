@@ -286,6 +286,15 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
 
     final items = _buildFlatList(widget.assets);
 
+    final displayOrderIds = <String>[];
+    for (final item in items) {
+      if (item is _RowItem) {
+        for (final asset in item.assets) {
+          displayOrderIds.add(asset.id);
+        }
+      }
+    }
+
     return GestureDetector(
       onLongPressStart: (details) => _onDragStart(details.globalPosition, context),
       onLongPressMoveUpdate: (details) => _onDragUpdate(details.globalPosition, context),
@@ -379,13 +388,12 @@ class _MonthlyGalleryState extends State<MonthlyGallery> {
                                     ?.call(row.assets[i].id);
                               } else {
                                 final flatIndex =
-                                    widget.assets.indexOf(row.assets[i]);
+                                    displayOrderIds.indexOf(row.assets[i].id);
                                 AppNavigator.goToViewer(
                                   context,
                                   assetId: row.assets[i].id,
                                   title: row.assets[i].title ?? 'Photo',
-                                  assetIds:
-                                      widget.assets.map((a) => a.id).toList(),
+                                  assetIds: displayOrderIds,
                                   initialIndex:
                                       flatIndex >= 0 ? flatIndex : 0,
                                 );
