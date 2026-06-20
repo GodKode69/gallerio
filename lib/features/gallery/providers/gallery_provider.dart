@@ -399,14 +399,12 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
     }
     state = state.copyWith(
       selectedAssetIds: newSelected,
-      isSelectionMode: newSelected.isNotEmpty,
     );
   }
 
   void setSelection(Set<String> ids) {
     state = state.copyWith(
       selectedAssetIds: ids,
-      isSelectionMode: ids.isNotEmpty,
     );
   }
 

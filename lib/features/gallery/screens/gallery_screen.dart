@@ -11,7 +11,6 @@ import '../providers/gallery_provider.dart';
 import '../widgets/monthly_gallery.dart';
 import '../widgets/shimmer_loading.dart';
 import '../widgets/sort_sheet.dart';
-import '../widgets/multi_select_bar.dart';
 
 class GalleryScreen extends ConsumerStatefulWidget {
   final NavbarScrollObserver? navbarObserver;
@@ -63,6 +62,9 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     );
     final isSelectionMode = ref.watch(
       galleryProvider.select((s) => s.isSelectionMode),
+    );
+    ref.watch(
+      galleryProvider.select((s) => s.selectedAssetIds),
     );
     final screenWidth = MediaQuery.of(context).size.width;
     final dpr = MediaQuery.of(context).devicePixelRatio;
@@ -197,9 +199,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     final isSelectionMode = ref.watch(
       galleryProvider.select((s) => s.isSelectionMode),
     );
-    final selectedCount = ref.watch(
-      galleryProvider.select((s) => s.selectedCount),
-    );
     final showFavoritesOnly = ref.watch(
       galleryProvider.select((s) => s.showFavoritesOnly),
     );
@@ -211,41 +210,36 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: isSelectionMode
-            ? Text('$selectedCount selected')
-            : const Text('Gallerio'),
+      appBar: isSelectionMode
+          ? AppBar(
+              title: const SizedBox.shrink(),
+              toolbarHeight: 72,
+            )
+          : AppBar(
+        title: const Text('Gallerio'),
         actions: [
-          if (isSelectionMode) ...[
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () =>
-                  ref.read(galleryProvider.notifier).exitSelectionMode(),
+          IconButton(
+            icon: Icon(
+              showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
+              color: showFavoritesOnly
+                  ? AppColors.favoriteRed
+                  : AppColors.textMuted,
             ),
-          ] else ...[
-            IconButton(
-              icon: Icon(
-                showFavoritesOnly ? Icons.favorite : Icons.favorite_border,
-                color: showFavoritesOnly
-                    ? AppColors.favoriteRed
-                    : AppColors.textMuted,
-              ),
-              onPressed: () => ref
-                  .read(galleryProvider.notifier)
-                  .setShowFavoritesOnly(!showFavoritesOnly),
-              tooltip: showFavoritesOnly ? 'Show all' : 'Favorites',
+            onPressed: () => ref
+                .read(galleryProvider.notifier)
+                .setShowFavoritesOnly(!showFavoritesOnly),
+            tooltip: showFavoritesOnly ? 'Show all' : 'Favorites',
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.sort,
+              color: sortOrder != SortOrder.newest
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
             ),
-            IconButton(
-              icon: Icon(
-                Icons.sort,
-                color: sortOrder != SortOrder.newest
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
-              ),
-              onPressed: () => SortSheet.show(context),
-              tooltip: 'Sort',
-            ),
-          ],
+            onPressed: () => SortSheet.show(context),
+            tooltip: 'Sort',
+          ),
         ],
       ),
       body: !hasPermission
@@ -281,7 +275,6 @@ class _GalleryScreenState extends ConsumerState<GalleryScreen> {
                       message: 'No photos found',
                     )
                   : _buildBody(context),
-      bottomNavigationBar: const MultiSelectBar(),
     );
   }
 }

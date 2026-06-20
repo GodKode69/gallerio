@@ -114,14 +114,7 @@ class _GalleryThumbnailState extends State<GalleryThumbnail> {
                 child: _SelectionBadge(isSelected: widget.isSelected),
               ),
             if (widget.showSelection && widget.isSelected)
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.3),
-                ),
-              ),
+              const _SelectionOverlay(),
           ],
         ),
       ),
@@ -195,26 +188,41 @@ class _FavoriteBadge extends StatelessWidget {
   }
 }
 
+class _SelectionOverlay extends StatelessWidget {
+  const _SelectionOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+    );
+  }
+}
+
 class _SelectionBadge extends StatelessWidget {
   final bool isSelected;
   const _SelectionBadge({required this.isSelected});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: 24,
-      height: 24,
-      decoration: BoxDecoration(
-        color: isSelected
-            ? Theme.of(context).colorScheme.primary
-            : Colors.black45,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.textPrimary, width: 1.5),
+    return AnimatedScale(
+      scale: isSelected ? 1.0 : 0.85,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutBack,
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Colors.black45,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.textPrimary, width: 1.5),
+        ),
+        child: isSelected
+            ? const Icon(Icons.check, color: Colors.white, size: 16)
+            : null,
       ),
-      child: isSelected
-          ? const Icon(Icons.check, color: Colors.white, size: 16)
-          : null,
     );
   }
 }

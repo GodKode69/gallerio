@@ -50,12 +50,22 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     super.initState();
     resetAlbumDetail.addListener(_onResetAlbumDetail);
     albumHasSelection.addListener(_onAlbumSelectionCleared);
+    albumSelectAllTrigger.addListener(_onAlbumSelectAll);
+    albumShareTrigger.addListener(_onAlbumShare);
+    albumHideTrigger.addListener(_onAlbumHide);
+    albumDeleteTrigger.addListener(_onAlbumDelete);
+    albumExitSelectionTrigger.addListener(_onAlbumExitSelection);
   }
 
   @override
   void dispose() {
     resetAlbumDetail.removeListener(_onResetAlbumDetail);
     albumHasSelection.removeListener(_onAlbumSelectionCleared);
+    albumSelectAllTrigger.removeListener(_onAlbumSelectAll);
+    albumShareTrigger.removeListener(_onAlbumShare);
+    albumHideTrigger.removeListener(_onAlbumHide);
+    albumDeleteTrigger.removeListener(_onAlbumDelete);
+    albumExitSelectionTrigger.removeListener(_onAlbumExitSelection);
     _albumPrefetcher?.dispose();
     _albumScrollController.dispose();
     _albumDetailScrollController.dispose();
@@ -70,6 +80,19 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       });
     }
   }
+
+  void _onAlbumSelectAll() {
+    if (_allAlbumSelected) {
+      _deselectAllAlbum();
+    } else {
+      _selectAllAlbum();
+    }
+  }
+
+  void _onAlbumShare() => _shareAlbumSelected();
+  void _onAlbumHide() => _moveAlbumSelectedToVault();
+  void _onAlbumDelete() => _deleteAlbumSelected();
+  void _onAlbumExitSelection() => _exitAlbumSelectionMode();
 
   void _onResetAlbumDetail() {
     if (_selectedAlbum != null) {
@@ -94,8 +117,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       } else {
         _albumSelectedIds.add(id);
       }
-      _albumSelectionMode = _albumSelectedIds.isNotEmpty;
-      albumHasSelection.value = _albumSelectionMode;
     });
   }
 
@@ -104,8 +125,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       _albumSelectedIds
         ..clear()
         ..addAll(ids);
-      _albumSelectionMode = _albumSelectedIds.isNotEmpty;
-      albumHasSelection.value = _albumSelectionMode;
     });
   }
 
@@ -131,6 +150,16 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         ..addAll(_filteredAlbumAssets.map((a) => a.id));
     });
   }
+
+  void _deselectAllAlbum() {
+    setState(() {
+      _albumSelectedIds.clear();
+    });
+  }
+
+  bool get _allAlbumSelected =>
+      _filteredAlbumAssets.isNotEmpty &&
+      _albumSelectedIds.length == _filteredAlbumAssets.length;
 
   List<AssetEntity> get _albumSelectedAssets {
     return _filteredAlbumAssets
@@ -423,10 +452,17 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: _albumSelectionMode
-            ? Text('${_albumSelectedIds.length} selected')
-            : Text(
+      appBar: _albumSelectionMode
+          ? AppBar(
+              title: const SizedBox.shrink(),
+              toolbarHeight: 72,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: _exitAlbumSelectionMode,
+              ),
+            )
+          : AppBar(
+        title: Text(
                 _selectedAlbum != null
                     ? ref.read(galleryProvider).getAlbumDisplayName(_selectedAlbum!)
                     : 'Album',
@@ -451,24 +487,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
             });
           },
         ),
-        actions: [
-          if (_albumSelectionMode)
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: _exitAlbumSelectionMode,
-            ),
-        ],
       ),
-      bottomNavigationBar: _albumSelectionMode
-          ? _AlbumMultiSelectBar(
-              selectedCount: _albumSelectedIds.length,
-              onExit: _exitAlbumSelectionMode,
-              onSelectAll: _selectAllAlbum,
-              onShare: () => _shareAlbumSelected(),
-              onDelete: () => _deleteAlbumSelected(),
-              onVault: () => _moveAlbumSelectedToVault(),
-            )
-          : null,
       body: Column(
         children: [
           _buildAlbumTypeFilterChips(),
@@ -554,116 +573,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
       }
     }
     _exitAlbumSelectionMode();
-  }
-}
-
-class _AlbumMultiSelectBar extends StatelessWidget {
-  final int selectedCount;
-  final VoidCallback onExit;
-  final VoidCallback onSelectAll;
-  final VoidCallback onShare;
-  final VoidCallback onDelete;
-  final VoidCallback onVault;
-
-  const _AlbumMultiSelectBar({
-    required this.selectedCount,
-    required this.onExit,
-    required this.onSelectAll,
-    required this.onShare,
-    required this.onDelete,
-    required this.onVault,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: AppColors.navBarBackground,
-        border: Border(
-          top: BorderSide(
-            color: colorScheme.primary.withValues(alpha: 0.3),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white70),
-            onPressed: onExit,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              '$selectedCount',
-              style: TextStyle(
-                color: colorScheme.primary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const Spacer(),
-          _AlbumActionButton(
-            icon: Icons.select_all,
-            label: 'All',
-            onTap: onSelectAll,
-          ),
-          _AlbumActionButton(
-            icon: Icons.share,
-            label: 'Share',
-            onTap: onShare,
-          ),
-          _AlbumActionButton(
-            icon: Icons.delete_outline,
-            label: 'Delete',
-            onTap: onDelete,
-          ),
-          _AlbumActionButton(
-            icon: Icons.lock,
-            label: 'Vault',
-            onTap: onVault,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AlbumActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _AlbumActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white70, size: 22),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white54, fontSize: 10),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

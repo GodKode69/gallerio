@@ -1,8 +1,14 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'package:photo_manager/photo_manager.dart';
 import '../shared/widgets/gallerio_nav_bar.dart';
 import '../shared/widgets/navbar_scroll_observer.dart';
+import '../shared/widgets/confirm_delete_dialog.dart';
 import '../features/gallery/screens/gallery_screen.dart';
 import '../features/gallery/screens/albums_screen.dart';
 import '../features/gallery/screens/search_screen.dart';
@@ -10,10 +16,18 @@ import '../features/tools/screens/tools_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/gallery/providers/gallery_provider.dart';
 import '../features/onboarding/screens/onboarding_overlay.dart';
+import '../core/database/database.dart';
+import '../core/trash/trash_service.dart';
+import '../shared/utils/vault_utils.dart';
 
 final searchFocusTrigger = ValueNotifier<int>(0);
 final resetAlbumDetail = ValueNotifier<int>(0);
 final albumHasSelection = ValueNotifier<bool>(false);
+final albumSelectAllTrigger = ValueNotifier<int>(0);
+final albumShareTrigger = ValueNotifier<int>(0);
+final albumHideTrigger = ValueNotifier<int>(0);
+final albumDeleteTrigger = ValueNotifier<int>(0);
+final albumExitSelectionTrigger = ValueNotifier<int>(0);
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -31,6 +45,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
   NavbarDockState _dockState = NavbarDockState.center;
   late final AnimationController _dockAnim;
   final _navbarOffsetValue = ValueNotifier<double>(0);
+  late final AnimationController _selectionAnim;
 
   late final List<Widget> _screens;
 
@@ -51,6 +66,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
         _navbarObserver.setDocked(false);
       }
     });
+    _selectionAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
     _screens = [
       AlbumsScreen(navbarObserver: _navbarObserver),
       GalleryScreen(navbarObserver: _navbarObserver),
@@ -71,6 +90,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _dockAnim.dispose();
+    _selectionAnim.dispose();
     super.dispose();
   }
 
@@ -113,6 +133,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     if (ref.read(galleryProvider).isSelectionMode) {
       ref.read(galleryProvider.notifier).exitSelectionMode();
     }
+    if (albumHasSelection.value) {
+      albumExitSelectionTrigger.value++;
+    }
     if (ref.read(isAlbumDetailProvider)) {
       ref.read(isAlbumDetailProvider.notifier).state = false;
       resetAlbumDetail.value++;
@@ -138,7 +161,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
       return true;
     }
     if (albumHasSelection.value) {
-      albumHasSelection.value = false;
+      albumExitSelectionTrigger.value++;
       return true;
     }
     if (ref.read(isAlbumDetailProvider)) {
@@ -155,6 +178,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
 
     if (ref.read(galleryProvider).isSelectionMode) {
       ref.read(galleryProvider.notifier).exitSelectionMode();
+    }
+    if (albumHasSelection.value) {
+      albumExitSelectionTrigger.value++;
     }
 
     if (ref.read(isAlbumDetailProvider)) {
@@ -178,10 +204,106 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     );
   }
 
+  Future<void> _shareGallerySelected() async {
+    final assets = ref.read(galleryProvider.notifier).selectedAssets;
+    final paths = <String>[];
+    for (final asset in assets) {
+      final file = await asset.file;
+      if (file != null) paths.add(file.path);
+    }
+    if (paths.isNotEmpty) {
+      await Share.shareXFiles(
+        paths.map((path) => XFile(path)).toList(),
+        text: '${paths.length} items',
+      );
+    }
+    ref.read(galleryProvider.notifier).exitSelectionMode();
+  }
+
+  Future<void> _deleteGallerySelected() async {
+    final confirmed = await ConfirmDeleteDialog.show(
+      context,
+      title: 'Delete Items?',
+    );
+    if (confirmed == true) {
+      final assets = ref.read(galleryProvider.notifier).selectedAssets;
+      try {
+        await TrashService().deleteMultipleWithTrash(assets);
+      } catch (_) {}
+      ref.read(galleryProvider.notifier).exitSelectionMode();
+      ref.read(galleryProvider.notifier).refresh();
+    }
+  }
+
+  Future<void> _hideGallerySelected() async {
+    final assets = ref.read(galleryProvider.notifier).selectedAssets;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final vaultDir = Directory(p.join(appDir.path, 'vault'));
+      if (!await vaultDir.exists()) {
+        await vaultDir.create(recursive: true);
+      }
+      final db = GallerioDatabase();
+      int count = 0;
+      for (final asset in assets) {
+        final file = await asset.file;
+        if (file == null) continue;
+        final vaultName = generateVaultName();
+        final ext = p.extension(file.path);
+        final vaultPath = p.join(vaultDir.path, '$vaultName$ext');
+        await file.copy(vaultPath);
+        final name = asset.title ?? 'Photo';
+        await db.insertVaultItem(VaultItem(
+          id: 0,
+          name: name,
+          encryptedPath: vaultPath,
+          originalName: name,
+          mimeType: asset.type == AssetType.video ? 'video' : 'image',
+          size: 0,
+          dateAdded: DateTime.now(),
+          dateModified: DateTime.now(),
+          album: 'Imported',
+          iv: '',
+        ));
+        count++;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$count items moved to vault')),
+        );
+      }
+    } catch (_) {}
+    ref.read(galleryProvider.notifier).exitSelectionMode();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isPinching = ref.watch(isPinchingProvider);
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    final gallerySelection = ref.watch(
+      galleryProvider.select((s) => s.isSelectionMode),
+    );
+    final gallerySelectedCount = ref.watch(
+      galleryProvider.select((s) => s.selectedCount),
+    );
+    final galleryAllSelected = ref.watch(
+      galleryProvider.select((s) {
+        return s.displayAssets.isNotEmpty &&
+            s.selectedAssetIds.length == s.displayAssets.length;
+      }),
+    );
+    final albumSelection = albumHasSelection.value;
+    final isSelectionMode = gallerySelection || albumSelection;
+    final selectedCount = gallerySelection ? gallerySelectedCount : 0;
+    final allSelected = gallerySelection ? galleryAllSelected : false;
+
+    if (isSelectionMode && _selectionAnim.value == 0) {
+      _selectionAnim.forward();
+    } else if (!isSelectionMode && _selectionAnim.value == 1) {
+      _selectionAnim.reverse();
+    }
 
     return Scaffold(
         body: Stack(
@@ -202,51 +324,125 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
               itemBuilder: (context, index) => _screens[index],
             ),
             AnimatedBuilder(
-              animation: Listenable.merge([_dockAnim, _navbarOffsetValue]),
+              animation: Listenable.merge([
+                _dockAnim,
+                _navbarOffsetValue,
+                _selectionAnim,
+              ]),
               builder: (context, _) {
                 final t = Curves.easeInOutCubic.transform(_dockAnim.value);
                 final navbarOffset = _navbarOffsetValue.value;
+                final selT = _selectionAnim.value;
 
                 double navWidth;
                 double navLeft;
 
-                switch (_dockState) {
-                  case NavbarDockState.dockedLeft:
-                    navLeft = lerpDouble(0, 16, t)!;
-                    navWidth = lerpDouble(screenWidth, 72, t)!;
-                    break;
-                  case NavbarDockState.dockedRight:
-                    navLeft = lerpDouble(0, screenWidth - 72, t)!;
-                    navWidth = lerpDouble(screenWidth, 72, t)!;
-                    break;
-                  case NavbarDockState.center:
-                    navWidth = screenWidth;
-                    navLeft = 0;
-                    break;
+                if (selT > 0.5) {
+                  navWidth = screenWidth;
+                  navLeft = 0;
+                } else {
+                  switch (_dockState) {
+                    case NavbarDockState.dockedLeft:
+                      navLeft = lerpDouble(0, 16, t)!;
+                      navWidth = lerpDouble(screenWidth, 72, t)!;
+                      break;
+                    case NavbarDockState.dockedRight:
+                      navLeft = lerpDouble(0, screenWidth - 72, t)!;
+                      navWidth = lerpDouble(screenWidth, 72, t)!;
+                      break;
+                    case NavbarDockState.center:
+                      navWidth = screenWidth;
+                      navLeft = 0;
+                      break;
+                  }
                 }
+
+                const overshoot = 100.0;
+                final statusBar = MediaQuery.of(context).padding.top;
+                final topY = -(screenHeight - 72 - statusBar - 4);
+                final bottomOffscreen = screenHeight + overshoot;
+                final topOffscreen = -(screenHeight + overshoot);
+
+                double selectionOffset;
+                if (selT <= 0.5) {
+                  final rawPhase = selT * 2;
+                  final phase = Curves.easeInCubic.transform(rawPhase);
+                  selectionOffset = lerpDouble(0, bottomOffscreen, phase)!;
+                } else {
+                  final rawPhase = (selT - 0.5) * 2;
+                  final phase = Curves.easeOutCubic.transform(rawPhase);
+                  selectionOffset = lerpDouble(topOffscreen, topY, phase)!;
+                }
+
+                final effectiveOffset = selT > 0.5 ? 0.0 : navbarOffset;
 
                 return Positioned(
                   left: navLeft,
                   bottom: 0,
                   width: navWidth,
                   child: Transform.translate(
-                    offset: Offset(0, navbarOffset),
+                    offset: Offset(0, effectiveOffset + selectionOffset),
                     child: GallerioNavBar(
                       currentIndex: _currentIndex,
                       previousIndex: _previousIndex,
                       dockState: _dockState,
                       dockAnimValue: _dockAnim.value,
-                      onDock: _onDockChanged,
-                      onTap: (index) {
-                        if (index == _currentIndex) {
-                          if (index == 2) {
-                            searchFocusTrigger.value++;
-                          }
-                          return;
+                      onDock: isSelectionMode ? null : _onDockChanged,
+                      onTap: isSelectionMode
+                          ? (_) {}
+                          : (index) {
+                              if (index == _currentIndex) {
+                                if (index == 2) {
+                                  searchFocusTrigger.value++;
+                                }
+                                return;
+                              }
+                              _switchTab(index);
+                            },
+                      onMenuTap: isSelectionMode ? null : _onMenuTap,
+                      isSelectionMode: selT > 0.5,
+                      selectedCount: selectedCount,
+                      allSelected: allSelected,
+                      onCloseSelection: () {
+                        if (gallerySelection) {
+                          ref.read(galleryProvider.notifier).exitSelectionMode();
                         }
-                        _switchTab(index);
+                        if (albumSelection) {
+                          albumExitSelectionTrigger.value++;
+                        }
                       },
-                      onMenuTap: _onMenuTap,
+                      onToggleAll: () {
+                        if (gallerySelection) {
+                          if (allSelected) {
+                            ref.read(galleryProvider.notifier).deselectAll();
+                          } else {
+                            ref.read(galleryProvider.notifier).selectAll();
+                          }
+                        } else if (albumSelection) {
+                          albumSelectAllTrigger.value++;
+                        }
+                      },
+                      onShare: () {
+                        if (gallerySelection) {
+                          _shareGallerySelected();
+                        } else if (albumSelection) {
+                          albumShareTrigger.value++;
+                        }
+                      },
+                      onHide: () {
+                        if (gallerySelection) {
+                          _hideGallerySelected();
+                        } else if (albumSelection) {
+                          albumHideTrigger.value++;
+                        }
+                      },
+                      onDelete: () {
+                        if (gallerySelection) {
+                          _deleteGallerySelected();
+                        } else if (albumSelection) {
+                          albumDeleteTrigger.value++;
+                        }
+                      },
                     ),
                   ),
                 );

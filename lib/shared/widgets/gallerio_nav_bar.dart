@@ -12,6 +12,14 @@ class GallerioNavBar extends StatefulWidget {
   final NavbarDockState dockState;
   final double dockAnimValue;
   final ValueChanged<NavbarDockState>? onDock;
+  final bool isSelectionMode;
+  final int selectedCount;
+  final bool allSelected;
+  final VoidCallback? onCloseSelection;
+  final VoidCallback? onToggleAll;
+  final VoidCallback? onShare;
+  final VoidCallback? onHide;
+  final VoidCallback? onDelete;
 
   const GallerioNavBar({
     super.key,
@@ -22,6 +30,14 @@ class GallerioNavBar extends StatefulWidget {
     this.dockState = NavbarDockState.center,
     this.dockAnimValue = 0.0,
     this.onDock,
+    this.isSelectionMode = false,
+    this.selectedCount = 0,
+    this.allSelected = false,
+    this.onCloseSelection,
+    this.onToggleAll,
+    this.onShare,
+    this.onHide,
+    this.onDelete,
   });
 
   @override
@@ -79,6 +95,7 @@ class _GallerioNavBarState extends State<GallerioNavBar>
   }
 
   void _onPointerUp(PointerUpEvent event) {
+    if (widget.isSelectionMode) return;
     final dx = event.position.dx - _dragStartX;
 
     if (widget.dockState != NavbarDockState.center) {
@@ -115,6 +132,9 @@ class _GallerioNavBarState extends State<GallerioNavBar>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isSelectionMode) {
+      return _buildSelection();
+    }
     final showExpanded = widget.dockState == NavbarDockState.center ||
         widget.dockAnimValue < 0.7;
     if (showExpanded) {
@@ -122,6 +142,172 @@ class _GallerioNavBarState extends State<GallerioNavBar>
       return _buildExpanded();
     }
     return _buildCollapsed();
+  }
+
+  Widget _buildSelection() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusBar = MediaQuery.of(context).padding.top;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, statusBar + 4, 16, 12),
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: AppColors.chipBackground.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onCloseSelection,
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.close, color: Colors.white70, size: 22),
+                      SizedBox(height: 2),
+                      Text('Close',
+                          style: TextStyle(color: Colors.white54, fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 28,
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
+              SizedBox(
+                width: 48,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${widget.selectedCount}',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 28,
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onToggleAll,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        widget.allSelected
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank,
+                        color: widget.allSelected
+                            ? colorScheme.primary
+                            : Colors.white70,
+                        size: 22,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.allSelected ? 'None' : 'All',
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.selectedCount > 0 ? widget.onShare : null,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.share,
+                          color: widget.selectedCount > 0
+                              ? Colors.white70
+                              : Colors.white24,
+                          size: 22),
+                      const SizedBox(height: 2),
+                      Text('Share',
+                          style: TextStyle(
+                              color: widget.selectedCount > 0
+                                  ? Colors.white54
+                                  : Colors.white24,
+                              fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.selectedCount > 0 ? widget.onHide : null,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.visibility_off,
+                          color: widget.selectedCount > 0
+                              ? Colors.white70
+                              : Colors.white24,
+                          size: 22),
+                      const SizedBox(height: 2),
+                      Text('Hide',
+                          style: TextStyle(
+                              color: widget.selectedCount > 0
+                                  ? Colors.white54
+                                  : Colors.white24,
+                              fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.selectedCount > 0 ? widget.onDelete : null,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete_outline,
+                          color: widget.selectedCount > 0
+                              ? Colors.white70
+                              : Colors.white24,
+                          size: 22),
+                      const SizedBox(height: 2),
+                      Text('Delete',
+                          style: TextStyle(
+                              color: widget.selectedCount > 0
+                                  ? Colors.white54
+                                  : Colors.white24,
+                              fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildCollapsed() {
