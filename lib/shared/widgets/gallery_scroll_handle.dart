@@ -31,6 +31,7 @@ class _GalleryScrollHandleState extends State<GalleryScrollHandle>
   Timer? _hideTimer;
   bool _showLabel = false;
   bool _wasThumbDrag = false;
+  String? _lastLabel;
   final Set<int> _pointersInScrollbar = {};
 
   late final AnimationController _thumbAnim =
@@ -65,7 +66,9 @@ class _GalleryScrollHandleState extends State<GalleryScrollHandle>
   bool get _isThumbDragging => _pointersInScrollbar.isNotEmpty;
 
   void _onScroll() {
-    if (_showLabel && mounted) setState(() {});
+    if (!_showLabel || !mounted) return;
+    final newLabel = _resolveLabel(widget.sections);
+    if (newLabel != _lastLabel) setState(() {});
   }
 
   void _startHideTimer() {
@@ -107,6 +110,7 @@ class _GalleryScrollHandleState extends State<GalleryScrollHandle>
       return const SizedBox.shrink();
     }
     final label = _resolveLabel(sections);
+    _lastLabel = label;
     if (label == null) return const SizedBox.shrink();
     final maxScroll = _controller.position.maxScrollExtent;
     if (maxScroll <= 0) return const SizedBox.shrink();

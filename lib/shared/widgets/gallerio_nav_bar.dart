@@ -51,7 +51,7 @@ class _GallerioNavBarState extends State<GallerioNavBar>
     Icons.settings,
   ];
 
-  static const _labels = ['Albums', 'Gallery', 'Search', 'Convert', 'Settings'];
+  static const _labels = ['Albums', 'Gallery', 'Search', 'Tools', 'Settings'];
 
   @override
   void initState() {
@@ -60,7 +60,6 @@ class _GallerioNavBarState extends State<GallerioNavBar>
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
-    _menuAnim.addListener(() => setState(() {}));
   }
 
   @override
@@ -129,8 +128,6 @@ class _GallerioNavBarState extends State<GallerioNavBar>
     final colorScheme = Theme.of(context).colorScheme;
     final index = widget.currentIndex;
     final otherIndices = [0, 1, 2, 3, 4].where((i) => i != index).toList();
-    final t = _menuAnim.value;
-    final menuHeight = t * otherIndices.length * 48;
 
     final alignment = widget.dockState == NavbarDockState.dockedLeft
         ? Alignment.centerLeft
@@ -144,50 +141,58 @@ class _GallerioNavBarState extends State<GallerioNavBar>
         padding: const EdgeInsets.only(bottom: 12),
         child: Align(
           alignment: alignment,
-          child: Container(
-            width: 56,
-            height: 56 + menuHeight,
-            decoration: BoxDecoration(
-              color: AppColors.chipBackground.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.hardEdge,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_isMenuOpen || _menuAnim.isAnimating)
-                  for (int j = 0; j < otherIndices.length; j++)
-                    _buildAnimatedMenuItem(
-                      otherIndices[j],
-                      j,
-                      otherIndices.length,
-                      t,
-                      colorScheme,
+          child: AnimatedBuilder(
+            animation: _menuAnim,
+            builder: (context, _) {
+              final t = _menuAnim.value;
+              final menuHeight = t * otherIndices.length * 48;
+
+              return Container(
+                width: 56,
+                height: 56 + menuHeight,
+                decoration: BoxDecoration(
+                  color: AppColors.chipBackground.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
                     ),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _toggleMenu,
-                  child: SizedBox(
-                    width: 56,
-                    height: 56,
-                    child: Center(
-                      child: Icon(
-                        _activeIcons[index],
-                        color: colorScheme.primary,
-                        size: 22,
+                  ],
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isMenuOpen || _menuAnim.isAnimating)
+                      for (int j = 0; j < otherIndices.length; j++)
+                        _buildAnimatedMenuItem(
+                          otherIndices[j],
+                          j,
+                          otherIndices.length,
+                          t,
+                          colorScheme,
+                        ),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _toggleMenu,
+                      child: SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: Center(
+                          child: Icon(
+                            _activeIcons[index],
+                            color: colorScheme.primary,
+                            size: 22,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),

@@ -113,6 +113,12 @@ class GalleryNotifier extends StateNotifier<GalleryState> {
   static const int _maxRecentlyViewed = 50;
   Timer? _gridColumnsSaveTimer;
 
+  @override
+  void dispose() {
+    _gridColumnsSaveTimer?.cancel();
+    super.dispose();
+  }
+
   GalleryNotifier() : super(const GalleryState()) {
     init();
   }

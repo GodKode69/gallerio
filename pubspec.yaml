@@ -45,6 +45,10 @@ dependencies:
   # Animations
   shimmer: ^3.0.0
 
+  # Image conversion
+  flutter_image_compress: ^2.4.0
+  image: ^4.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

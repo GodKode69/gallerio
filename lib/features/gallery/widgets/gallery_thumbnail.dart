@@ -53,7 +53,9 @@ class _GalleryThumbnailState extends State<GalleryThumbnail> {
   }
 
   void _onCacheChanged() {
-    if (mounted) setState(() {});
+    if (mounted && widget.prefetcher?.getCachedThumbnail(widget.asset.id) != null) {
+      setState(() {});
+    }
   }
 
   @override

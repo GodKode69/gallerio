@@ -70,7 +70,7 @@ class VaultGrid extends StatelessWidget {
   }
 }
 
-class _VaultItemTile extends StatelessWidget {
+class _VaultItemTile extends StatefulWidget {
   final VaultItem item;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
@@ -82,10 +82,28 @@ class _VaultItemTile extends StatelessWidget {
   });
 
   @override
+  State<_VaultItemTile> createState() => _VaultItemTileState();
+}
+
+class _VaultItemTileState extends State<_VaultItemTile> {
+  late final bool _hasThumbnail;
+  late final bool _hasEncryptedPath;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasThumbnail = widget.item.thumbnailPath != null &&
+        File(widget.item.thumbnailPath!).existsSync();
+    _hasEncryptedPath = widget.item.mimeType.contains('image') &&
+        File(widget.item.encryptedPath).existsSync();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onDelete != null
+      onTap: widget.onTap,
+      onLongPress: widget.onDelete != null
           ? () async {
               final confirmed = await ConfirmDeleteDialog.show(
                 context,
@@ -93,7 +111,7 @@ class _VaultItemTile extends StatelessWidget {
                 confirmLabel: 'Remove',
               );
               if (confirmed) {
-                onDelete?.call();
+                widget.onDelete?.call();
               }
             }
           : null,
@@ -105,13 +123,31 @@ class _VaultItemTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (item.thumbnailPath != null &&
-                File(item.thumbnailPath!).existsSync())
+            if (_hasThumbnail)
               ClipRect(
                 child: ImageFiltered(
                   imageFilter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Image.file(
                     File(item.thumbnailPath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Icon(
+                          _getIconForMime(item.mimeType),
+                          color: Colors.white24,
+                          size: 40,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              )
+            else if (_hasEncryptedPath)
+              ClipRect(
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Image.file(
+                    File(item.encryptedPath),
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Center(

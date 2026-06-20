@@ -110,12 +110,13 @@ class GallerioDatabase {
 
   Future<List<VaultItem>> searchVaultItems(String query) async {
     final db = await database;
-    final rows = await db.query('vault_items');
-    final q = query.toLowerCase();
-    return rows
-        .map(VaultItem.fromMap)
-        .where((item) => item.name.toLowerCase().contains(q))
-        .toList();
+    final rows = await db.query(
+      'vault_items',
+      where: 'name LIKE ?',
+      whereArgs: ['%$query%'],
+      orderBy: 'date_added DESC',
+    );
+    return rows.map(VaultItem.fromMap).toList();
   }
 
   Future<List<String>> getAllAlbums() async {

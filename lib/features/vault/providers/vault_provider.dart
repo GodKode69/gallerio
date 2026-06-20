@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:photo_manager/photo_manager.dart';
 
 import '../../../core/database/database.dart';
 import '../../../shared/utils/vault_utils.dart';
@@ -99,6 +100,10 @@ class VaultNotifier extends StateNotifier<VaultState> {
     );
   }
 
+  Future<void> refresh() async {
+    await _loadItemsAndAlbums();
+  }
+
   Future<void> importFiles({
     required List<String> filePaths,
     required Map<String, dynamic> assetInfo,
@@ -167,6 +172,17 @@ class VaultNotifier extends StateNotifier<VaultState> {
     if (item != null) {
       final file = File(item.encryptedPath);
       if (await file.exists()) {
+        try {
+          final bytes = await file.readAsBytes();
+          final name = item.originalName ?? item.name;
+          final ext = name.contains('.') ? name.substring(name.lastIndexOf('.')) : '.jpg';
+          final baseName = name.contains('.') ? name.substring(0, name.lastIndexOf('.')) : name;
+          await PhotoManager.editor.saveImage(
+            bytes,
+            filename: '$baseName$ext',
+          );
+        } catch (_) {}
+
         await file.delete();
       }
       if (item.thumbnailPath != null) {

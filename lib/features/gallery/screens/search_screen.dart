@@ -326,7 +326,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
-    _prefetcher?.updateAssets(recentlyViewed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefetcher?.updateAssets(recentlyViewed);
+      _onScrollForPrefetch();
+    });
 
     final rows = <List<AssetEntity>>[];
     for (int i = 0; i < recentlyViewed.length; i += 3) {
@@ -437,7 +440,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
-    _prefetcher?.updateAssets(favAssets);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefetcher?.updateAssets(favAssets);
+    });
     return _buildResultsGrid(favAssets);
   }
 

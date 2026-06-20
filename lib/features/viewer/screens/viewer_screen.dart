@@ -4,16 +4,25 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import '../../../app/theme.dart';
 import '../../wallpaper/screens/wallpaper_preview_screen.dart';
 import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
 import '../../../shared/widgets/confirm_delete_dialog.dart';
 import '../../../shared/widgets/top_message.dart';
+import '../../../core/database/database.dart';
 import '../../../core/trash/trash_service.dart';
+import '../../../shared/utils/vault_utils.dart';
 import '../../gallery/providers/gallery_provider.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../vault/providers/vault_provider.dart';
+import 'image_edit_screen.dart';
+import 'album_picker_screen.dart';
 
 class ViewerScreen extends StatefulWidget {
   final String? assetId;
@@ -43,6 +52,7 @@ class _ViewerScreenState extends State<ViewerScreen>
     with TickerProviderStateMixin {
   late PageController _pageController;
   late int _currentIndex;
+  late List<String> _assetIds;
   bool _showControls = true;
   String _currentTitle = '';
   AssetEntity? _currentAsset;
@@ -69,13 +79,14 @@ class _ViewerScreenState extends State<ViewerScreen>
   int _tapCount = 0;
   Timer? _tapTimer;
 
-  bool get _hasSliding => widget.assetIds != null && widget.assetIds!.length > 1;
+  bool get _hasSliding => _assetIds.length > 1;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _currentTitle = widget.title;
+    _assetIds = List<String>.from(widget.assetIds ?? []);
     _pageController = PageController(initialPage: widget.initialIndex);
     _fadeController = AnimationController(
       vsync: this,
@@ -116,8 +127,8 @@ class _ViewerScreenState extends State<ViewerScreen>
       return;
     }
 
-    if (widget.assetIds != null && _currentIndex < widget.assetIds!.length) {
-      final asset = await AssetEntity.fromId(widget.assetIds![_currentIndex]);
+    if (widget.assetIds != null && _currentIndex < _assetIds.length) {
+      final asset = await AssetEntity.fromId(_assetIds[_currentIndex]);
       if (asset != null && mounted) {
         final favoriteIds = ProviderScope.containerOf(context)
             .read(galleryProvider.select((s) => s.favoriteIds));
@@ -320,7 +331,7 @@ class _ViewerScreenState extends State<ViewerScreen>
       physics: _imageScaleNotifier.value > 1.01
           ? const NeverScrollableScrollPhysics()
           : null,
-      itemCount: widget.assetIds!.length,
+      itemCount: _assetIds.length,
       onPageChanged: (index) {
         _resetZoom();
         setState(() {
@@ -331,15 +342,15 @@ class _ViewerScreenState extends State<ViewerScreen>
         _loadAssetAtIndex(index);
       },
       itemBuilder: (context, index) => _ViewerPage(
-        assetId: widget.assetIds![index],
+        assetId: _assetIds[index],
         isCurrentPage: index == _currentIndex,
       ),
     );
   }
 
   Future<void> _loadAssetAtIndex(int index) async {
-    if (index < widget.assetIds!.length) {
-      final asset = await AssetEntity.fromId(widget.assetIds![index]);
+    if (index < _assetIds.length) {
+      final asset = await AssetEntity.fromId(_assetIds[index]);
       if (asset != null && mounted) {
         setState(() {
           _currentAsset = asset;
@@ -466,7 +477,7 @@ class _ViewerScreenState extends State<ViewerScreen>
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Text(
-                '${_currentIndex + 1}/${widget.assetIds!.length}',
+                '${_currentIndex + 1}/${_assetIds.length}',
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 14,
@@ -498,11 +509,12 @@ class _ViewerScreenState extends State<ViewerScreen>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildBottomActionButton(
-              icon: Icons.info_outline,
-              label: 'Info',
-              onTap: _showInfo,
-            ),
+            if (!widget.isVaultItem)
+              _buildBottomActionButton(
+                icon: Icons.crop_rotate,
+                label: 'Edit',
+                onTap: _edit,
+              ),
             _buildBottomActionButton(
               icon: Icons.share,
               label: 'Share',
@@ -514,17 +526,16 @@ class _ViewerScreenState extends State<ViewerScreen>
               iconColor: _isFavorite ? AppColors.favoriteRed : null,
               onTap: _toggleFavorite,
             ),
-            if (!widget.isVaultItem)
-              _buildBottomActionButton(
-                icon: Icons.wallpaper,
-                label: 'Wallpaper',
-                onTap: _setAsWallpaper,
-              ),
             _buildBottomActionButton(
               icon: Icons.delete_outline,
               label: 'Delete',
               iconColor: AppColors.favoriteRed,
               onTap: _delete,
+            ),
+            _buildBottomActionButton(
+              icon: Icons.more_horiz,
+              label: 'More',
+              onTap: _showMoreOptions,
             ),
           ],
         ),
@@ -627,17 +638,18 @@ class _ViewerScreenState extends State<ViewerScreen>
                 .read(galleryProvider.notifier)
                 .refresh();
             if (_hasSliding) {
-              final newIds = List<String>.from(widget.assetIds!)..removeAt(_currentIndex);
+              final newIds = List<String>.from(_assetIds)..removeAt(_currentIndex);
               if (newIds.isEmpty) {
                 Navigator.of(context).pop();
               } else {
                 final newIndex = _currentIndex.clamp(0, newIds.length - 1);
-                final updatedIds = List<String>.from(widget.assetIds!)..removeAt(_currentIndex);
+                final updatedIds = List<String>.from(_assetIds)..removeAt(_currentIndex);
                 setState(() {
                   _currentIndex = newIndex;
                 });
-                widget.assetIds!.clear();
-                widget.assetIds!.addAll(updatedIds);
+                _assetIds.clear();
+                _assetIds.addAll(updatedIds);
+                _pageController.dispose();
                 _pageController = PageController(initialPage: newIndex);
                 _loadCurrentAsset();
               }
@@ -706,6 +718,461 @@ class _ViewerScreenState extends State<ViewerScreen>
         },
       ),
     );
+  }
+
+  Future<void> _edit() async {
+    if (_currentAsset == null) return;
+
+    try {
+      final result = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => ImageEditScreen(
+            asset: _currentAsset,
+            title: _currentTitle,
+          ),
+        ),
+      );
+
+      if (result != null && mounted) {
+        final newAsset = await AssetEntity.fromId(result);
+        if (newAsset != null && _hasSliding) {
+          final newIds = List<String>.from(_assetIds)..insert(_currentIndex + 1, result);
+          setState(() {
+            _assetIds.clear();
+            _assetIds.addAll(newIds);
+            _currentIndex = _currentIndex + 1;
+            _currentAsset = newAsset;
+            _currentTitle = newAsset.title ?? 'Edited';
+          });
+          _pageController.dispose();
+          _pageController = PageController(initialPage: _currentIndex);
+        } else {
+          setState(() {
+            _currentAsset = newAsset;
+            _currentTitle = newAsset?.title ?? 'Edited';
+          });
+          _loadCurrentAsset();
+        }
+        if (!mounted) return;
+        ProviderScope.containerOf(context).read(galleryProvider.notifier).refresh();
+      }
+    } catch (e) {
+      if (mounted) {
+        showTopMessage(context, 'Could not open editor');
+      }
+    }
+  }
+
+  void _showMoreOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.sheetBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BottomSheetDragHandle(),
+            const SizedBox(height: 16),
+            _buildMoreOption(
+              icon: Icons.edit,
+              label: 'Rename',
+              onTap: () {
+                Navigator.of(context).pop();
+                _rename();
+              },
+            ),
+            _buildMoreOption(
+              icon: Icons.info_outline,
+              label: 'Info',
+              onTap: () {
+                Navigator.of(context).pop();
+                _showInfo();
+              },
+            ),
+            if (!widget.isVaultItem) ...[
+              _buildMoreOption(
+                icon: Icons.visibility_off,
+                label: 'Hide',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _hideToVault();
+                },
+              ),
+              _buildMoreOption(
+                icon: Icons.wallpaper,
+                label: 'Set as wallpaper',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _setAsWallpaper();
+                },
+              ),
+              _buildMoreOption(
+                icon: Icons.content_copy,
+                label: 'Copy to clipboard',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _copyToClipboard();
+                },
+              ),
+              _buildMoreOption(
+                icon: Icons.file_copy,
+                label: 'Copy to album',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _copyToAlbum();
+                },
+              ),
+              _buildMoreOption(
+                icon: Icons.drive_file_move,
+                label: 'Move to album',
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _moveToAlbum();
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoreOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.white.withValues(alpha: 0.7), size: 22),
+      title: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 15),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _rename() async {
+    final nameController = TextEditingController(
+      text: _currentTitle.contains('.') ? _currentTitle.substring(0, _currentTitle.lastIndexOf('.')) : _currentTitle,
+    );
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.sheetBackground,
+        title: const Text('Rename', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Enter new name',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.favoriteRed),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(nameController.text.trim()),
+            child: const Text('Rename', style: TextStyle(color: AppColors.favoriteRed)),
+          ),
+        ],
+      ),
+    );
+
+    if (newName == null || newName.isEmpty || !mounted) return;
+
+    if (widget.isVaultItem && widget.filePath != null) {
+      try {
+        final file = File(widget.filePath!);
+        final ext = file.path.contains('.') ? file.path.substring(file.path.lastIndexOf('.')) : '';
+        final newPath = '${file.parent.path}/$newName$ext';
+        await file.rename(newPath);
+        setState(() {
+          _currentTitle = '$newName$ext';
+        });
+        if (!mounted) return;
+        showTopMessage(context, 'Renamed');
+      } catch (e) {
+        if (!mounted) return;
+        showTopMessage(context, 'Rename failed');
+      }
+      return;
+    }
+
+    if (_currentAsset == null) return;
+
+    try {
+      if (Platform.isAndroid) {
+        if (!await Permission.manageExternalStorage.isGranted) {
+          final status = await Permission.manageExternalStorage.request();
+          if (!status.isGranted) {
+            if (mounted) {
+              showTopMessage(context, 'Files permission needed to rename');
+            }
+            return;
+          }
+        }
+      }
+
+      final ext = _currentTitle.contains('.')
+          ? _currentTitle.substring(_currentTitle.lastIndexOf('.'))
+          : '';
+      const channel = MethodChannel('com.arqora.gallerio/open_file');
+      await channel.invokeMethod('renameAsset', {
+        'assetId': _currentAsset!.id,
+        'newName': '$newName$ext',
+      });
+
+      setState(() {
+        _currentTitle = '$newName$ext';
+      });
+      if (!mounted) return;
+      showTopMessage(context, 'Renamed');
+    } catch (e) {
+      if (mounted) {
+        showTopMessage(context, 'Rename failed: $e');
+      }
+    }
+  }
+
+  Future<void> _hideToVault() async {
+    if (_currentAsset == null) return;
+
+    final authState = ProviderScope.containerOf(context).read(authStateProvider);
+    if (!authState.isVaultEnabled || !authState.hasVaultCode) {
+      showTopMessage(context, 'Enable vault security in Settings first');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.sheetBackground,
+        title: const Text('Hide?', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'This will move the image to vault and remove it from the gallery.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Hide', style: TextStyle(color: AppColors.favoriteRed)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final file = await _currentAsset!.file;
+      if (!mounted) return;
+      if (file == null) {
+        showTopMessage(context, 'Could not access file');
+        return;
+      }
+
+      final appDir = await getApplicationDocumentsDirectory();
+      final vaultDir = Directory('${appDir.path}/vault');
+      if (!await vaultDir.exists()) {
+        await vaultDir.create(recursive: true);
+      }
+
+      final thumbDir = Directory('${appDir.path}/vault/thumbs');
+      if (!await thumbDir.exists()) {
+        await thumbDir.create(recursive: true);
+      }
+
+      final vaultName = generateVaultName();
+      final ext = file.path.contains('.') ? file.path.substring(file.path.lastIndexOf('.')) : '';
+      final vaultPath = '${vaultDir.path}/$vaultName$ext';
+
+      await file.copy(vaultPath);
+
+      String? thumbnailPath;
+      try {
+        final thumbPath = '${thumbDir.path}/$vaultName$ext';
+        await file.copy(thumbPath);
+        thumbnailPath = thumbPath;
+      } catch (_) {}
+
+      final db = GallerioDatabase();
+      final name = _currentAsset!.title ?? 'Photo';
+      await db.insertVaultItem(VaultItem(
+        id: 0,
+        name: name,
+        encryptedPath: vaultPath,
+        originalName: name,
+        mimeType: _currentAsset!.type == AssetType.video ? 'video' : 'image',
+        size: 0,
+        dateAdded: DateTime.now(),
+        dateModified: DateTime.now(),
+        album: 'Imported',
+        iv: '',
+        thumbnailPath: thumbnailPath,
+      ));
+
+      await TrashService().deleteWithTrash(_currentAsset!);
+
+      if (mounted) {
+        ProviderScope.containerOf(context).read(galleryProvider.notifier).refresh();
+        ProviderScope.containerOf(context).read(vaultProvider.notifier).refresh();
+        showTopMessage(context, 'Moved to vault');
+
+        if (_hasSliding) {
+          final newIds = List<String>.from(_assetIds)..removeAt(_currentIndex);
+          if (newIds.isEmpty) {
+            Navigator.of(context).pop();
+          } else {
+            final newIndex = _currentIndex.clamp(0, newIds.length - 1);
+            setState(() {
+              _currentIndex = newIndex;
+              _assetIds.clear();
+              _assetIds.addAll(newIds);
+            });
+            _pageController.dispose();
+            _pageController = PageController(initialPage: newIndex);
+            _loadCurrentAsset();
+          }
+        } else {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showTopMessage(context, 'Failed to hide: $e');
+      }
+    }
+  }
+
+  Future<void> _copyToClipboard() async {
+    if (_currentAsset == null) return;
+
+    try {
+      final file = await _currentAsset!.file;
+      if (!mounted) return;
+      if (file == null) {
+        showTopMessage(context, 'Could not access file');
+        return;
+      }
+
+      const channel = MethodChannel('com.arqora.gallerio/open_file');
+      final result = await channel.invokeMethod('copyImageToClipboard', {
+        'filePath': file.path,
+      });
+      final sdkInt = (result as Map?)?['sdkInt'] as int? ?? 0;
+
+      if (mounted && sdkInt < 33) {
+        showTopMessage(context, 'Copied to clipboard');
+      }
+    } catch (e) {
+      if (mounted) {
+        showTopMessage(context, 'Failed to copy');
+      }
+    }
+  }
+
+  Future<void> _copyToAlbum() async {
+    if (_currentAsset == null) return;
+
+    if (!mounted) return;
+
+    final result = await Navigator.of(context).push<AlbumPickerResult>(
+      MaterialPageRoute(
+        builder: (_) => const AlbumPickerScreen(isMove: false),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    try {
+      await PhotoManager.editor.copyAssetToPath(
+        asset: _currentAsset!,
+        pathEntity: result.album,
+      );
+      if (mounted) {
+        showTopMessage(context, 'Copied to ${result.album.name}');
+      }
+    } catch (e) {
+      if (mounted) {
+        showTopMessage(context, 'Copy failed: $e');
+      }
+    }
+  }
+
+  Future<void> _moveToAlbum() async {
+    if (_currentAsset == null) return;
+
+    if (!mounted) return;
+
+    final result = await Navigator.of(context).push<AlbumPickerResult>(
+      MaterialPageRoute(
+        builder: (_) => const AlbumPickerScreen(isMove: true),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    try {
+      await PhotoManager.editor.copyAssetToPath(
+        asset: _currentAsset!,
+        pathEntity: result.album,
+      );
+
+      final deleted = await TrashService().deleteWithTrash(_currentAsset!);
+
+      if (mounted) {
+        ProviderScope.containerOf(context).read(galleryProvider.notifier).refresh();
+
+        if (deleted) {
+          showTopMessage(context, 'Moved to ${result.album.name}');
+        } else {
+          showTopMessage(context, 'Copied but original not removed');
+        }
+
+        if (_hasSliding) {
+          final newIds = List<String>.from(_assetIds)..removeAt(_currentIndex);
+          if (newIds.isEmpty) {
+            Navigator.of(context).pop();
+          } else {
+            final newIndex = _currentIndex.clamp(0, newIds.length - 1);
+            setState(() {
+              _currentIndex = newIndex;
+              _assetIds.clear();
+              _assetIds.addAll(newIds);
+            });
+            _pageController.dispose();
+            _pageController = PageController(initialPage: newIndex);
+            _loadCurrentAsset();
+          }
+        } else {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        showTopMessage(context, 'Move failed: $e');
+      }
+    }
   }
 
   Future<Map<String, dynamic>> _getMetadata() async {

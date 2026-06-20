@@ -6,7 +6,7 @@ import '../shared/widgets/navbar_scroll_observer.dart';
 import '../features/gallery/screens/gallery_screen.dart';
 import '../features/gallery/screens/albums_screen.dart';
 import '../features/gallery/screens/search_screen.dart';
-import '../features/settings/screens/convert_screen.dart';
+import '../features/tools/screens/tools_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/gallery/providers/gallery_provider.dart';
 import '../features/onboarding/screens/onboarding_overlay.dart';
@@ -30,6 +30,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
   final _navbarObserver = NavbarScrollObserver();
   NavbarDockState _dockState = NavbarDockState.center;
   late final AnimationController _dockAnim;
+  final _navbarOffsetValue = ValueNotifier<double>(0);
 
   late final List<Widget> _screens;
 
@@ -42,7 +43,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
-    _dockAnim.addListener(() => setState(() {}));
     _dockAnim.addStatusListener((status) {
       if (status == AnimationStatus.dismissed) {
         setState(() {
@@ -55,7 +55,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
       AlbumsScreen(navbarObserver: _navbarObserver),
       GalleryScreen(navbarObserver: _navbarObserver),
       SearchScreen(navbarObserver: _navbarObserver),
-      const ConvertScreen(),
+      const ToolsScreen(),
       const SettingsScreen(),
     ];
     _navbarObserver.addListener(_onNavbarOffsetChanged);
@@ -67,6 +67,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     _navbarObserver.removeListener(_onNavbarOffsetChanged);
     tutorialTabNotifier.removeListener(_onTutorialTabRequest);
     _navbarObserver.dispose();
+    _navbarOffsetValue.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _dockAnim.dispose();
@@ -74,7 +75,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
   }
 
   void _onNavbarOffsetChanged() {
-    setState(() {});
+    _navbarOffsetValue.value = _navbarObserver.offset;
   }
 
   void _onTutorialTabRequest() {
@@ -180,27 +181,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
   @override
   Widget build(BuildContext context) {
     final isPinching = ref.watch(isPinchingProvider);
-    final navbarOffset = _navbarObserver.offset;
     final screenWidth = MediaQuery.of(context).size.width;
-    final t = Curves.easeInOutCubic.transform(_dockAnim.value);
-
-    double navWidth;
-    double navLeft;
-
-    switch (_dockState) {
-      case NavbarDockState.dockedLeft:
-        navLeft = lerpDouble(0, 16, t)!;
-        navWidth = lerpDouble(screenWidth, 72, t)!;
-        break;
-      case NavbarDockState.dockedRight:
-        navLeft = lerpDouble(0, screenWidth - 72, t)!;
-        navWidth = lerpDouble(screenWidth, 72, t)!;
-        break;
-      case NavbarDockState.center:
-        navWidth = screenWidth;
-        navLeft = 0;
-        break;
-    }
 
     return Scaffold(
         body: Stack(
@@ -220,30 +201,56 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
               itemCount: _screens.length,
               itemBuilder: (context, index) => _screens[index],
             ),
-            Positioned(
-              left: navLeft,
-              bottom: 0,
-              width: navWidth,
-              child: Transform.translate(
-                offset: Offset(0, navbarOffset),
-                child: GallerioNavBar(
-                  currentIndex: _currentIndex,
-                  previousIndex: _previousIndex,
-                  dockState: _dockState,
-                  dockAnimValue: _dockAnim.value,
-                  onDock: _onDockChanged,
-                  onTap: (index) {
-                    if (index == _currentIndex) {
-                      if (index == 2) {
-                        searchFocusTrigger.value++;
-                      }
-                      return;
-                    }
-                    _switchTab(index);
-                  },
-                  onMenuTap: _onMenuTap,
-                ),
-              ),
+            AnimatedBuilder(
+              animation: Listenable.merge([_dockAnim, _navbarOffsetValue]),
+              builder: (context, _) {
+                final t = Curves.easeInOutCubic.transform(_dockAnim.value);
+                final navbarOffset = _navbarOffsetValue.value;
+
+                double navWidth;
+                double navLeft;
+
+                switch (_dockState) {
+                  case NavbarDockState.dockedLeft:
+                    navLeft = lerpDouble(0, 16, t)!;
+                    navWidth = lerpDouble(screenWidth, 72, t)!;
+                    break;
+                  case NavbarDockState.dockedRight:
+                    navLeft = lerpDouble(0, screenWidth - 72, t)!;
+                    navWidth = lerpDouble(screenWidth, 72, t)!;
+                    break;
+                  case NavbarDockState.center:
+                    navWidth = screenWidth;
+                    navLeft = 0;
+                    break;
+                }
+
+                return Positioned(
+                  left: navLeft,
+                  bottom: 0,
+                  width: navWidth,
+                  child: Transform.translate(
+                    offset: Offset(0, navbarOffset),
+                    child: GallerioNavBar(
+                      currentIndex: _currentIndex,
+                      previousIndex: _previousIndex,
+                      dockState: _dockState,
+                      dockAnimValue: _dockAnim.value,
+                      onDock: _onDockChanged,
+                      onTap: (index) {
+                        if (index == _currentIndex) {
+                          if (index == 2) {
+                            searchFocusTrigger.value++;
+                          }
+                          return;
+                        }
+                        _switchTab(index);
+                      },
+                      onMenuTap: _onMenuTap,
+                    ),
+                  ),
+                );
+              },
             ),
         ],
       ),

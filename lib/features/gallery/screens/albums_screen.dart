@@ -704,16 +704,16 @@ class _AlbumCardState extends State<AlbumCard> {
   Future<List<AssetEntity>> _loadSingleAlbumThumbnails() async {
     final count = await widget.album.assetCountAsync;
     if (count == 0) return [];
-    final assets = (await widget.album.getAssetListRange(start: 0, end: count)).toList();
-    assets.sort((a, b) => b.createDateTime.compareTo(a.createDateTime));
-    return assets.take(4).toList();
+    final end = count < 4 ? count : 4;
+    return (await widget.album.getAssetListRange(start: 0, end: end)).toList();
   }
 
   Future<List<AssetEntity>> _loadMergedThumbnails() async {
     final futures = widget.sourceAlbums.map((src) async {
       final count = await src.assetCountAsync;
       if (count == 0) return <AssetEntity>[];
-      return (await src.getAssetListRange(start: 0, end: count)).toList();
+      final end = count < 4 ? count : 4;
+      return (await src.getAssetListRange(start: 0, end: end)).toList();
     });
     final results = await Future.wait(futures);
     final allAssets = results.expand((list) => list).toList();

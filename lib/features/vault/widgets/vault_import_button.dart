@@ -69,14 +69,20 @@ class VaultImportButton extends ConsumerWidget {
   }
 
   Future<void> _importFiles(BuildContext context, WidgetRef ref) async {
-    final hasPermission = await Permission.photos.request();
-    if (!hasPermission.isGranted && !hasPermission.isLimited) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permission required to import files')),
-        );
+    final photosStatus = await Permission.photos.request();
+    final videosStatus = await Permission.videos.request();
+    final hasPermission = (photosStatus.isGranted || photosStatus.isLimited) ||
+        (videosStatus.isGranted || videosStatus.isLimited);
+    if (!hasPermission) {
+      final storageStatus = await Permission.storage.request();
+      if (!storageStatus.isGranted) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permission required to import files')),
+          );
+        }
+        return;
       }
-      return;
     }
 
     final result = await FilePicker.platform.pickFiles(
@@ -97,17 +103,16 @@ class VaultImportButton extends ConsumerWidget {
       ),
     );
 
-    for (final file in validFiles) {
-      await ref.read(vaultProvider.notifier).importFiles(
-        filePaths: [file.path!],
-        assetInfo: {
-          'name': file.name,
-          'mimeType': file.extension ?? '',
-          'size': file.size,
-          'album': 'Imported',
-        },
-      );
-    }
+    final allPaths = validFiles.map((f) => f.path!).toList();
+    await ref.read(vaultProvider.notifier).importFiles(
+      filePaths: allPaths,
+      assetInfo: {
+        'name': 'Imported',
+        'mimeType': 'mixed',
+        'size': 0,
+        'album': 'Imported',
+      },
+    );
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -117,14 +122,20 @@ class VaultImportButton extends ConsumerWidget {
   }
 
   Future<void> _importFolder(BuildContext context, WidgetRef ref) async {
-    final hasPermission = await Permission.photos.request();
-    if (!hasPermission.isGranted && !hasPermission.isLimited) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permission required to import files')),
-        );
+    final photosStatus = await Permission.photos.request();
+    final videosStatus = await Permission.videos.request();
+    final hasPermission = (photosStatus.isGranted || photosStatus.isLimited) ||
+        (videosStatus.isGranted || videosStatus.isLimited);
+    if (!hasPermission) {
+      final storageStatus = await Permission.storage.request();
+      if (!storageStatus.isGranted) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permission required to import files')),
+          );
+        }
+        return;
       }
-      return;
     }
 
     final directoryPath = await FilePicker.platform.getDirectoryPath(
@@ -139,26 +150,36 @@ class VaultImportButton extends ConsumerWidget {
       const SnackBar(content: Text('Scanning folder...')),
     );
 
-    final files = await Isolate.run(() {
-      final directory = Directory(directoryPath);
-      const imageVideoExtensions = {
-        'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif',
-        'mp4', 'mov', 'avi', 'mkv', 'webm', '3gp',
-      };
-      return directory
-          .listSync()
-          .whereType<File>()
-          .where((file) {
-            final ext = file.path.split('.').last.toLowerCase();
-            return imageVideoExtensions.contains(ext);
-          })
-          .toList()
-        ..sort((a, b) {
-          final aStat = a.statSync();
-          final bStat = b.statSync();
-          return bStat.modified.compareTo(aStat.modified);
-        });
-    });
+    List<File> files;
+    try {
+      files = await Isolate.run(() {
+        final directory = Directory(directoryPath);
+        const imageVideoExtensions = {
+          'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif',
+          'mp4', 'mov', 'avi', 'mkv', 'webm', '3gp',
+        };
+        return directory
+            .listSync()
+            .whereType<File>()
+            .where((file) {
+              final ext = file.path.split('.').last.toLowerCase();
+              return imageVideoExtensions.contains(ext);
+            })
+            .toList()
+          ..sort((a, b) {
+            final aStat = a.statSync();
+            final bStat = b.statSync();
+            return bStat.modified.compareTo(aStat.modified);
+          });
+      });
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not access folder: $e')),
+        );
+      }
+      return;
+    }
 
     if (files.isEmpty) {
       if (context.mounted) {
