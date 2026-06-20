@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:photo_manager/photo_manager.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -401,7 +402,8 @@ class _ImageConverterScreenState extends State<ImageConverterScreen> {
 
     try {
       final bytes = await _result!.file.readAsBytes();
-      final name = 'converted_${DateTime.now().millisecondsSinceEpoch}';
+      final oldName = p.basenameWithoutExtension(_inputPath!);
+      final name = 'converted_$oldName';
       await PhotoManager.editor.saveImage(
         bytes,
         filename: '$name${_result!.targetFormat.extension}',

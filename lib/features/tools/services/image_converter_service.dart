@@ -78,10 +78,10 @@ class ImageConverterService {
       await convertedDir.create(recursive: true);
     }
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final oldName = p.basenameWithoutExtension(inputPath);
     final outputPath = p.join(
       convertedDir.path,
-      'converted_$timestamp${targetFormat.extension}',
+      'converted_$oldName${targetFormat.extension}',
     );
 
     Uint8List? result;
