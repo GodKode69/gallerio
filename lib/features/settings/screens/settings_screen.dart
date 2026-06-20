@@ -68,7 +68,7 @@ class SettingsScreen extends ConsumerWidget {
           const _SettingsTile(
             icon: Icons.info_outline,
             title: 'Gallerio',
-            subtitle: 'Version 1.0.8',
+            subtitle: 'Version 1.0.9',
           ),
           _SettingsTile(
             icon: Icons.help_outline,
